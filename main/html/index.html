@@ -1,0 +1,672 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>系统配置界面</title>
+    <style>
+        /* 基础样式设置 */
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+
+        /* 主容器样式 */
+        .container {
+            background-color: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+            position: relative;
+        }
+
+        /* 表单组样式 */
+        .form-group {
+            margin-bottom: 15px;
+        }
+
+        /* 组容器样式：用于包裹每个Modbus轮询组的配置 */
+        .group-container {
+            border: 1px solid #ddd;
+            padding: 15px;
+            margin-bottom: 15px;
+            border-radius: 4px;
+            background-color: #f9f9f9;
+        }
+
+        /* 标签样式 */
+        label {
+            display: inline-block;
+            width: 120px;
+            margin-right: 10px;
+        }
+
+        /* 输入框和选择框统一样式 */
+        input[type="number"],
+        input[type="text"],
+        input[type="password"],
+        select {
+            width: 150px;
+            padding: 5px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+        }
+
+        /* 按钮基础样式 */
+        button {
+            background-color: #4CAF50;
+            color: white;
+            padding: 10px 20px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+
+        /* 按钮悬停效果 */
+        button:hover {
+            background-color: #45a049;
+        }
+
+        /* 系统配置按钮定位 */
+        .system-config {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+        }
+
+        /* 模态框基础样式 */
+        .modal {
+            display: none;
+            position: fixed;
+            z-index: 1;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.4);
+        }
+
+        /* 模态框内容样式 */
+        .modal-content {
+            background-color: #fefefe;
+            margin: 15% auto;
+            padding: 20px;
+            border: 1px solid #888;
+            width: 80%;
+            max-width: 500px;
+            border-radius: 8px;
+        }
+
+        /* 关闭按钮样式 */
+        .close {
+            color: #aaa;
+            float: right;
+            font-size: 28px;
+            font-weight: bold;
+            cursor: pointer;
+        }
+
+        /* 关闭按钮悬停效果 */
+        .close:hover {
+            color: black;
+        }
+
+        /* 轮询组标题栏样式 */
+        .group-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 10px;
+        }
+
+        /* 轮询组标题文字样式 */
+        .group-title {
+            font-weight: bold;
+        }
+
+        /* 成功提示信息样式 */
+        .success {
+            color: green;
+            margin-top: 10px;
+        }
+
+        /* 错误提示信息样式 */
+        .error {
+            color: red;
+            margin-top: 10px;
+        }
+
+        /* 标签页头部样式 */
+        .tab-header {
+            margin-bottom: 20px;
+        }
+
+        /* 标签页按钮样式 */
+        .tab-button {
+            background-color: #f1f1f1;
+            color: black;
+            padding: 10px 20px;
+            border: none;
+            border-radius: 4px;
+            margin-right: 10px;
+            cursor: pointer;
+        }
+
+        /* 激活状态的标签页按钮样式 */
+        .tab-button.active {
+            background-color: #4CAF50;
+            color: white;
+        }
+
+        /* MQTT连接状态显示区域样式 */
+        #mqtt_connection_status {
+            margin-top: 10px;
+            padding: 5px;
+            border-radius: 4px;
+        }
+
+        /* MQTT组复选框标签样式 */
+        .mqtt-group-checkbox label {
+            display: inline-block;
+            width: auto;
+            margin-right: 20px;
+        }
+
+        /* MQTT组复选框输入框样式 */
+        .mqtt-group-checkbox input[type="checkbox"] {
+            margin-right: 5px;
+        }
+
+        /* MQTT组容器样式调整 */
+        .mqtt_groups_container {
+            margin-left: 10px;
+            margin-top: 5px;
+        }
+
+        /* MQTT组标题样式 */
+        .mqtt-groups-title {
+            margin-bottom: 10px;
+            font-weight: normal;
+        }
+
+        /* 按钮组样式 */
+        .button-group {
+            margin: 20px 0;
+        }
+
+        /* 刷新按钮悬停效果 */
+        .button-group button:hover {
+            opacity: 0.9;
+        }
+    </style>
+</head>
+
+<body>
+    <!-- 主容器 -->
+    <div class="container">
+        <h1>Modbus配置界面</h1>
+
+        <!-- 标签页切换按钮 -->
+        <div class="tab-header">
+            <button onclick="showTab('modbus')" id="modbus-tab" class="tab-button active">Modbus配置</button>
+            <button onclick="showTab('mqtt')" id="mqtt-tab" class="tab-button">MQTT配置</button>
+        </div>
+
+        <!-- 系统配置按钮 -->
+        <div class="system-config">
+            <button onclick="openWifiModal()">系统配置</button>
+        </div>
+
+        <!-- Modbus配置区域 -->
+        <div id="modbus-config" class="tab-content">
+            <!-- 基本配置选项 -->
+            <div class="form-group">
+                <label for="poll_interval">轮询间隔(ms):</label>
+                <input type="number" id="poll_interval" min="100" step="100">
+            </div>
+            <div class="form-group">
+                <label for="group_count">轮询组数量:</label>
+                <input type="number" id="group_count" min="1" max="5" onchange="validateAndUpdateGroups()">
+            </div>
+
+            <!-- 轮询组配置容器 -->
+            <div id="groups_container"></div>
+
+            <!-- 按钮和状态显示 -->
+            <div class="button-group" style="display: flex; gap: 10px;">
+                <button onclick="saveConfig()">保存配置</button>
+                <button onclick="fetchConfig()" style="background-color: #2196F3;">刷新配置</button>
+            </div>
+            <div id="save_status"></div>
+        </div>
+
+        <!-- MQTT配置区域 -->
+        <div id="mqtt-config" class="tab-content" style="display:none;">
+            <!-- MQTT基本配置选项 -->
+            <div class="form-group">
+                <label>
+                    <input type="checkbox" id="mqtt_enabled">
+                    启用MQTT
+                </label>
+            </div>
+            <div class="form-group">
+                <label for="mqtt_broker">MQTT服务器:</label>
+                <input type="text" id="mqtt_broker" placeholder="mqtt://example.com">
+            </div>
+            <!-- MQTT认证信息 -->
+            <div class="form-group">
+                <label for="mqtt_username">用户名:</label>
+                <input type="text" id="mqtt_username">
+            </div>
+            <div class="form-group">
+                <label for="mqtt_password">密码:</label>
+                <input type="password" id="mqtt_password">
+            </div>
+            <!-- MQTT主题配置 -->
+            <div class="form-group">
+                <label for="mqtt_topic">主题:</label>
+                <input type="text" id="mqtt_topic" placeholder="modbus/data">
+            </div>
+            <!-- MQTT轮询组选择 -->
+            <div class="form-group">
+                <label>选择发布的轮询组:</label>
+                <div id="mqtt_groups_container">
+                    <!-- 动态生成的复选框容器 -->
+                </div>
+            </div>
+            <!-- MQTT发布间隔配置 -->
+            <div class="form-group">
+                <label for="mqtt_interval">发布间隔(ms):</label>
+                <input type="number" id="mqtt_interval" min="100" step="100" value="1000">
+            </div>
+            <!-- MQTT保存按钮和状态显示 -->
+            <div class="button-group" style="display: flex; gap: 10px;">
+                <button onclick="saveMqttConfig()">保存MQTT配置</button>
+                <button onclick="fetchMqttConfig()" style="background-color: #2196F3;">刷新MQTT配置</button>
+            </div>
+            <div id="mqtt_status"></div>
+            <div id="mqtt_connection_status"></div>
+        </div>
+
+        <!-- WiFi配置模态框 -->
+        <div id="wifiModal" class="modal">
+            <div class="modal-content">
+                <span class="close" onclick="closeWifiModal()">&times;</span>
+                <h2>WiFi配置</h2>
+                <!-- WiFi配置表单 -->
+                <div class="form-group">
+                    <label for="wifi_ssid">SSID:</label>
+                    <input type="text" id="wifi_ssid" placeholder="输入WiFi名称">
+                </div>
+                <div class="form-group">
+                    <label for="wifi_password">密码:</label>
+                    <input type="password" id="wifi_password" placeholder="输入WiFi密码">
+                </div>
+                <!-- WiFi配置保存按钮和状态显示 -->
+                <button onclick="saveWifiConfig()">保存WiFi配置</button>
+                <div id="wifi_status"></div>
+            </div>
+        </div>
+    </div>
+    <script>
+        // 常量定义
+        const MAX_REGISTERS_PER_GROUP = 100; // 每组最大寄存器数量
+        let currentConfig = {
+            poll_interval: 1000,
+            group_count: 1,
+            groups: []
+        };
+
+        // 模态框控制函数
+        function openWifiModal() {
+            document.getElementById('wifiModal').style.display = 'block';
+        }
+
+        function closeWifiModal() {
+            document.getElementById('wifiModal').style.display = 'none';
+        }
+
+        // 点击模态框外部关闭模态框
+        window.onclick = function (event) {
+            if (event.target === document.getElementById('wifiModal')) {
+                closeWifiModal();
+            }
+        }
+
+        // WiFi配置保存函数
+        async function saveWifiConfig() {
+            const ssid = document.getElementById('wifi_ssid').value;
+            const password = document.getElementById('wifi_password').value;
+
+            // 验证输入
+            if (!ssid || !password) {
+                alert('请输入SSID和密码');
+                return;
+            }
+
+            try {
+                // 发送WiFi配置到服务器
+                const response = await fetch('/api/wifi/config', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        ssid: ssid,
+                        password: password
+                    })
+                });
+
+                const result = await response.json();
+                const statusDiv = document.getElementById('wifi_status');
+
+                // 处理保存结果
+                if (result.status === 'ok') {
+                    statusDiv.innerHTML = '<div class="success">' + result.message + '</div>';
+                    setTimeout(() => {
+                        closeWifiModal();
+                        statusDiv.innerHTML = '';
+                    }, 3000);
+                } else {
+                    statusDiv.innerHTML = '<div class="error">配置保存失败</div>';
+                }
+            } catch (error) {
+                console.error('保存WiFi配置失败:', error);
+                alert('保存WiFi配置失败');
+            }
+        }
+
+        // MQTT相关函数
+        // 获取MQTT配置
+        async function fetchMqttConfig() {
+            const statusDiv = document.getElementById('mqtt_status');
+            try {
+                statusDiv.innerHTML = '<div style="color: #2196F3;">正在获取MQTT配置...</div>';
+                const response = await fetch('/api/mqtt/config');
+                const config = await response.json();
+                updateMqttUI(config);
+                statusDiv.innerHTML = '<div class="success">MQTT配置已刷新</div>';
+                setTimeout(() => {
+                    statusDiv.innerHTML = '';
+                }, 3000);
+            } catch (error) {
+                console.error('获取MQTT配置失败:', error);
+                statusDiv.innerHTML = '<div class="error">获取MQTT配置失败</div>';
+                setTimeout(() => {
+                    statusDiv.innerHTML = '';
+                }, 3000);
+            }
+        }
+
+        // 更新MQTT界面
+        function updateMqttUI(config) {
+            // 更新基本字段
+            document.getElementById('mqtt_enabled').checked = config.enabled;
+            document.getElementById('mqtt_broker').value = config.broker_url;
+            document.getElementById('mqtt_username').value = config.username;
+            document.getElementById('mqtt_topic').value = config.topic;
+            document.getElementById('mqtt_interval').value = config.publish_interval;
+
+            // 确保group_ids是数组
+            const selectedGroups = Array.isArray(config.group_ids) ? config.group_ids : [];
+
+            // 更新组选择UI
+            const groupsContainer = document.getElementById('mqtt_groups_container');
+            groupsContainer.innerHTML = '<div class="mqtt-groups-title">轮询组：</div>';
+
+            // 为每个可用组创建复选框
+            for (let i = 0; i < currentConfig.group_count; i++) {
+                const checkboxDiv = document.createElement('div');
+                checkboxDiv.className = 'mqtt-group-checkbox';
+                const isChecked = selectedGroups.includes(i);
+
+                checkboxDiv.innerHTML = `
+                        <label>
+                            <input type="checkbox" 
+                                   id="mqtt_group_${i}" 
+                                   value="${i}"
+                                   ${isChecked ? 'checked' : ''}>
+                            组 ${i + 1}
+                        </label>
+                    `;
+                groupsContainer.appendChild(checkboxDiv);
+            }
+
+            // 更新连接状态显示
+            updateMqttConnectionStatus(config.connected);
+        }
+
+        // 更新MQTT连接状态
+        function updateMqttConnectionStatus(connected) {
+            const statusDiv = document.getElementById('mqtt_connection_status');
+            if (connected) {
+                statusDiv.innerHTML = '状态: 已连接';
+                statusDiv.className = 'connected';
+            } else {
+                statusDiv.innerHTML = '状态: 未连接';
+                statusDiv.className = 'disconnected';
+            }
+        }
+
+        // 保存MQTT配置函数
+        async function saveMqttConfig() {
+            // 获取所有选中的复选框
+            const selectedGroups = Array.from(
+                document.querySelectorAll('#mqtt_groups_container input[type="checkbox"]:checked')
+            ).map(checkbox => parseInt(checkbox.value));
+
+            const config = {
+                enabled: document.getElementById('mqtt_enabled').checked,
+                broker_url: document.getElementById('mqtt_broker').value,
+                username: document.getElementById('mqtt_username').value,
+                password: document.getElementById('mqtt_password').value,
+                topic: document.getElementById('mqtt_topic').value,
+                group_ids: selectedGroups,
+                publish_interval: parseInt(document.getElementById('mqtt_interval').value)
+            };
+
+            try {
+                const response = await fetch('/api/mqtt/config', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(config)
+                });
+
+                const statusDiv = document.getElementById('mqtt_status');
+                if (response.ok) {
+                    statusDiv.innerHTML = '<div class="success">MQTT配置已保存</div>';
+                    setTimeout(() => {
+                        statusDiv.innerHTML = '';
+                    }, 3000);
+                    // 重新获取配置以更新UI
+                    await fetchMqttConfig();
+                } else {
+                    statusDiv.innerHTML = '<div class="error">MQTT配置保存失败</div>';
+                }
+            } catch (error) {
+                console.error('保存MQTT配置失败:', error);
+                alert('保存MQTT配置失败');
+            }
+        }
+
+        function showTab(tabName) {
+            // 更新标签页按钮状态
+            document.getElementById('modbus-tab').classList.remove('active');
+            document.getElementById('mqtt-tab').classList.remove('active');
+            document.getElementById(`${tabName}-tab`).classList.add('active');
+
+            // 显示/隐藏内容
+            document.getElementById('modbus-config').style.display = tabName === 'modbus' ? 'block' : 'none';
+            document.getElementById('mqtt-config').style.display = tabName === 'mqtt' ? 'block' : 'none';
+        }
+        // 获取Modbus配置
+        async function fetchConfig() {
+            const statusDiv = document.getElementById('save_status');
+            try {
+                statusDiv.innerHTML = '<div style="color: #2196F3;">正在获取配置...</div>';
+                const response = await fetch('/api/config');
+                currentConfig = await response.json();
+                updateUI();
+                statusDiv.innerHTML = '<div class="success">配置已刷新</div>';
+                setTimeout(() => {
+                    statusDiv.innerHTML = '';
+                }, 3000);
+            } catch (error) {
+                console.error('获取配置失败:', error);
+                statusDiv.innerHTML = '<div class="error">获取配置失败</div>';
+                setTimeout(() => {
+                    statusDiv.innerHTML = '';
+                }, 3000);
+            }
+        }
+
+        function updateUI() {
+            document.getElementById('poll_interval').value = currentConfig.poll_interval;
+            document.getElementById('group_count').value = currentConfig.group_count;
+            updateGroupsUI();
+        }
+
+        function validateAndUpdateGroups() {
+            const groupCount = parseInt(document.getElementById('group_count').value);
+            if (groupCount > 10) {
+                document.getElementById('group_count').value = 10;
+                alert('最大轮询组数量为10');
+            }
+            updateGroupsUI();
+        }
+
+        function updateGroupsUI() {
+            const groupCount = parseInt(document.getElementById('group_count').value);
+            const groupsContainer = document.getElementById('groups_container');
+            groupsContainer.innerHTML = '';
+
+            for (let i = 0; i < groupCount; i++) {
+                const group = currentConfig.groups[i] || {
+                    enabled: false,
+                    slave_addr: '',
+                    function_code: '',
+                    start_addr: '',
+                    reg_count: '',
+                    uart_port: ''
+                };
+
+                // 转换功能码为字符串进行比较
+                const functionCode = String(group.function_code).padStart(2, '0');
+
+                const groupHtml = `
+            <div class="group-container">
+                <div class="group-header">
+                    <span class="group-title">轮询组 ${i + 1}</span>
+                    <div>
+                        <label>
+                            <input type="checkbox" id="group_${i}_enabled" 
+                                   ${group.enabled ? 'checked' : ''}>
+                            启用
+                        </label>
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label>串口选择:</label>
+                    <select id="group_${i}_uart_port">
+                        <option value="1" ${group.uart_port === 1 ? 'selected' : ''}>UART1</option>
+                        <option value="2" ${group.uart_port === 2 ? 'selected' : ''}>UART2</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>从站地址:</label>
+                    <input type="number" id="group_${i}_slave_addr" 
+                           value="${group.slave_addr}" min="1" max="247">
+                </div>
+                <div class="form-group">
+                    <label>功能码:</label>
+  <select id="group_${i}_function_code">
+                        <option value="01" ${functionCode === '01' ? 'selected' : ''}>01-读线圈状态</option>
+                        <option value="02" ${functionCode === '02' ? 'selected' : ''}>02-读离散输入状态</option>
+                        <option value="03" ${functionCode === '03' ? 'selected' : ''}>03-读保持寄存器</option>
+                        <option value="04" ${functionCode === '04' ? 'selected' : ''}>04-读输入寄存器</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>起始地址:</label>
+                    <input type="number" id="group_${i}_start_addr" 
+                           value="${group.start_addr}" min="0">
+                </div>
+                <div class="form-group">
+                    <label>寄存器数量:</label>
+                    <input type="number" id="group_${i}_reg_count" 
+                           value="${group.reg_count}" min="1" max="${MAX_REGISTERS_PER_GROUP}"
+                           onchange="validateRegisterCount(${i})">
+                </div>
+            </div>
+        `;
+                groupsContainer.innerHTML += groupHtml;
+            }
+        }
+
+        function validateRegisterCount(groupIndex) {
+            const regCount = parseInt(document.getElementById(`group_${groupIndex}_reg_count`).value);
+            if (regCount > MAX_REGISTERS_PER_GROUP) {
+                alert(`每个轮询组的寄存器数量不能超过${MAX_REGISTERS_PER_GROUP}`);
+                document.getElementById(`group_${groupIndex}_reg_count`).value = MAX_REGISTERS_PER_GROUP;
+            }
+        }
+
+        async function saveConfig() {
+            const newConfig = {
+                poll_interval: parseInt(document.getElementById('poll_interval').value),
+                group_count: parseInt(document.getElementById('group_count').value),
+                groups: []
+            };
+
+            for (let i = 0; i < newConfig.group_count; i++) {
+                newConfig.groups.push({
+                    enabled: document.getElementById(`group_${i}_enabled`).checked,
+                    uart_port: parseInt(document.getElementById(`group_${i}_uart_port`).value) || '',
+                    slave_addr: parseInt(document.getElementById(`group_${i}_slave_addr`).value) || '',
+                    function_code: document.getElementById(`group_${i}_function_code`).value,
+                    start_addr: parseInt(document.getElementById(`group_${i}_start_addr`).value) || '',
+                    reg_count: parseInt(document.getElementById(`group_${i}_reg_count`).value) || ''
+                });
+            }
+
+            try {
+                const response = await fetch('/api/config', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(newConfig)
+                });
+
+                if (response.ok) {
+                    const statusDiv = document.getElementById('save_status');
+                    statusDiv.innerHTML = '<div class="success">配置已保存</div>';
+                    currentConfig = newConfig;
+                    setTimeout(() => {
+                        statusDiv.innerHTML = '';
+                    }, 3000);
+                } else {
+                    alert('配置保存失败');
+                }
+            } catch (error) {
+                console.error('保存配置失败:', error);
+                alert('保存配置失败');
+            }
+        }
+
+        function initializePage() {
+            fetchConfig();
+            fetchMqttConfig();
+        }
+        window.onload = initializePage;
+
+    </script>
+</body>
+
+</html>

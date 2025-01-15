@@ -1,0 +1,2 @@
+idf_component_register(SRCS "agile_modbus.c" "agile_modbus_rtu.c" "agile_modbus_tcp.c"
+                    INCLUDE_DIRS ".")
