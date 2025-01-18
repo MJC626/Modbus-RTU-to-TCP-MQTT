@@ -10,7 +10,7 @@ modbus_config_t modbus_config = {
     .poll_interval = 1000,
     .group_count = 1,
     .groups = {
-        {.enabled = true, .slave_addr = 1, .function_code = 1, .start_addr = 0, .reg_count = 10, .uart_port = 1},
+        {.enabled = true, .slave_addr = 1, .function_code = 4, .start_addr = 0, .reg_count = 10, .uart_port = 1},
     }
 };
 

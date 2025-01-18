@@ -52,9 +52,15 @@ void app_main(void) {
     if (ret != ESP_OK) {
         ESP_LOGW(TAG, "加载配置失败，使用默认配置");
     }
-    
+    // 加载MQTT配置
+    ESP_LOGI(TAG, "正在从NVS加载MQTT配置...");
+    ret = load_mqtt_config(&mqtt_config);
+    if (ret != ESP_OK) {
+    ESP_LOGW(TAG, "加载MQTT配置失败使用默认配置");
+    }
+
+    // 初始化串口
     ESP_ERROR_CHECK(uart_init());
-    
     // 初始化MQTT
     ESP_ERROR_CHECK(mqtt_init());
     

@@ -8,7 +8,20 @@
 // 日志标签
 static const char *TAG = "web_server";
 
-esp_err_t get_config_handler(httpd_req_t *req)
+esp_err_t get_html_handler(httpd_req_t *req)
+{
+    extern const uint8_t index_html_start[] asm("_binary_index_html_start");
+    extern const uint8_t index_html_end[] asm("_binary_index_html_end");
+    const size_t index_html_size = (index_html_end - index_html_start);
+
+    httpd_resp_set_type(req, "text/html");
+    httpd_resp_send(req, (const char *)index_html_start, index_html_size);
+
+    return ESP_OK;
+}
+
+// Modbus配置获取处理函数
+esp_err_t get_modbus_config_handler(httpd_req_t *req)
 {
     cJSON *root = cJSON_CreateObject();
     cJSON_AddNumberToObject(root, "poll_interval", modbus_config.poll_interval);
@@ -38,7 +51,8 @@ esp_err_t get_config_handler(httpd_req_t *req)
     return ESP_OK;
 }
 
-esp_err_t update_config_handler(httpd_req_t *req)
+// Modbus配置更新处理函数
+esp_err_t update_modbus_config_handler(httpd_req_t *req)
 {
     char *content = malloc(1024);
     int ret = httpd_req_recv(req, content, 1024);
@@ -146,18 +160,130 @@ esp_err_t update_config_handler(httpd_req_t *req)
     return ESP_OK;
 }
 
-esp_err_t get_html_handler(httpd_req_t *req)
+// MQTT配置获取处理函数
+esp_err_t get_mqtt_config_handler(httpd_req_t *req)
 {
-    extern const uint8_t index_html_start[] asm("_binary_index_html_start");
-    extern const uint8_t index_html_end[] asm("_binary_index_html_end");
-    const size_t index_html_size = (index_html_end - index_html_start);
+    cJSON *root = cJSON_CreateObject();
+    mqtt_config_t current_config;
+    mqtt_get_config(&current_config);
 
-    httpd_resp_set_type(req, "text/html");
-    httpd_resp_send(req, (const char *)index_html_start, index_html_size);
+    cJSON_AddBoolToObject(root, "enabled", current_config.enabled);
+    cJSON_AddStringToObject(root, "broker_url", current_config.broker_url);
+    cJSON_AddStringToObject(root, "username", current_config.username);
+    cJSON_AddStringToObject(root, "topic", current_config.topic);
 
+    // 添加组ID数组
+    cJSON *groups = cJSON_CreateArray();
+    cJSON *parse_methods = cJSON_CreateArray();
+    for (int i = 0; i < current_config.group_count; i++) {
+        cJSON_AddItemToArray(groups, cJSON_CreateNumber(current_config.group_ids[i]));
+        cJSON_AddItemToArray(parse_methods, cJSON_CreateNumber(current_config.parse_methods[i]));
+    }
+    cJSON_AddItemToObject(root, "group_ids", groups);
+    cJSON_AddItemToObject(root, "parse_methods", parse_methods);
+
+    cJSON_AddNumberToObject(root, "publish_interval", current_config.publish_interval);
+    cJSON_AddBoolToObject(root, "connected", mqtt_is_connected());
+
+    char *json_str = cJSON_Print(root);
+    httpd_resp_set_type(req, "application/json");
+    httpd_resp_send(req, json_str, strlen(json_str));
+
+    free(json_str);
+    cJSON_Delete(root);
     return ESP_OK;
 }
 
+// MQTT配置更新处理函数
+esp_err_t update_mqtt_config_handler(httpd_req_t *req)
+{
+    char *content = malloc(1024);
+    int ret = httpd_req_recv(req, content, 1024);
+    if (ret <= 0) {
+        free(content);
+        return ESP_FAIL;
+    }
+    content[ret] = '\0';
+
+    cJSON *root = cJSON_Parse(content);
+    free(content);
+
+    if (root == NULL) {
+        httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, "Invalid JSON");
+        return ESP_FAIL;
+    }
+
+    mqtt_config_t new_config;
+    mqtt_get_config(&new_config); // 获取当前配置作为基础
+
+    // 解析新的配置
+    cJSON *enabled = cJSON_GetObjectItem(root, "enabled");
+    cJSON *broker_url = cJSON_GetObjectItem(root, "broker_url");
+    cJSON *username = cJSON_GetObjectItem(root, "username");
+    cJSON *password = cJSON_GetObjectItem(root, "password");
+    cJSON *topic = cJSON_GetObjectItem(root, "topic");
+    cJSON *group_ids = cJSON_GetObjectItem(root, "group_ids");
+    cJSON *parse_methods = cJSON_GetObjectItem(root, "parse_methods");
+    cJSON *publish_interval = cJSON_GetObjectItem(root, "publish_interval");
+
+    if (enabled) new_config.enabled = enabled->valueint;
+    if (broker_url && cJSON_IsString(broker_url)) {
+        strncpy(new_config.broker_url, broker_url->valuestring, sizeof(new_config.broker_url) - 1);
+    }
+    if (username && cJSON_IsString(username)) {
+        strncpy(new_config.username, username->valuestring, sizeof(new_config.username) - 1);
+    }
+    if (password && cJSON_IsString(password)) {
+        strncpy(new_config.password, password->valuestring, sizeof(new_config.password) - 1);
+    }
+    if (topic && cJSON_IsString(topic)) {
+        strncpy(new_config.topic, topic->valuestring, sizeof(new_config.topic) - 1);
+    }
+
+    // 处理组ID和解析方式数组
+    if (group_ids && cJSON_IsArray(group_ids) && parse_methods && cJSON_IsArray(parse_methods)) {
+        int count = cJSON_GetArraySize(group_ids);
+        int parse_count = cJSON_GetArraySize(parse_methods);
+        
+        // 使用较小的数组大小作为实际数量
+        count = (count < parse_count) ? count : parse_count;
+        if (count > MAX_POLL_GROUPS) count = MAX_POLL_GROUPS;
+        new_config.group_count = count;
+
+        for (int i = 0; i < count; i++) {
+            cJSON *group_id = cJSON_GetArrayItem(group_ids, i);
+            cJSON *parse_method = cJSON_GetArrayItem(parse_methods, i);
+            
+            if (group_id && cJSON_IsNumber(group_id)) {
+                new_config.group_ids[i] = group_id->valueint;
+            }
+            if (parse_method && cJSON_IsNumber(parse_method)) {
+                new_config.parse_methods[i] = parse_method->valueint;
+            }
+        }
+    }
+
+    if (publish_interval) new_config.publish_interval = publish_interval->valueint;
+
+    // 更新MQTT配置
+    esp_err_t err = mqtt_update_config(&new_config);
+    if (err != ESP_OK) {
+        cJSON_Delete(root);
+        httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "Failed to update MQTT configuration");
+        return ESP_FAIL;
+    }
+
+    cJSON_Delete(root);
+    // 保存MQTT配置到NVS
+    err = save_mqtt_config(&mqtt_config);
+    if (err != ESP_OK) {
+    ESP_LOGE(TAG, "NVS存储失败");
+    }
+    httpd_resp_sendstr(req, "{\"status\":\"ok\"}");
+    return ESP_OK;
+}
+
+// WiFi配置获取处理函数
 esp_err_t wifi_config_handler(httpd_req_t *req)
 {
     char content[256];
@@ -210,126 +336,13 @@ esp_err_t wifi_config_handler(httpd_req_t *req)
     return ESP_OK;
 }
 
-// MQTT配置获取处理函数
-esp_err_t get_mqtt_config_handler(httpd_req_t *req)
-{
-    cJSON *root = cJSON_CreateObject();
-    mqtt_config_t current_config;
-    mqtt_get_config(&current_config);
-
-    cJSON_AddBoolToObject(root, "enabled", current_config.enabled);
-    cJSON_AddStringToObject(root, "broker_url", current_config.broker_url);
-    cJSON_AddStringToObject(root, "username", current_config.username);
-    cJSON_AddStringToObject(root, "topic", current_config.topic);
-
-    // 添加组ID数组
-    cJSON *groups = cJSON_CreateArray();
-    for (int i = 0; i < current_config.group_count; i++)
-    {
-        cJSON_AddItemToArray(groups, cJSON_CreateNumber(current_config.group_ids[i]));
-    }
-    cJSON_AddItemToObject(root, "group_ids", groups);
-
-    cJSON_AddNumberToObject(root, "publish_interval", current_config.publish_interval);
-    cJSON_AddBoolToObject(root, "connected", mqtt_is_connected());
-
-    char *json_str = cJSON_Print(root);
-    httpd_resp_set_type(req, "application/json");
-    httpd_resp_send(req, json_str, strlen(json_str));
-
-    free(json_str);
-    cJSON_Delete(root);
-    return ESP_OK;
-}
-
-// MQTT配置更新处理函数
-esp_err_t update_mqtt_config_handler(httpd_req_t *req)
-{
-    char *content = malloc(1024);
-    int ret = httpd_req_recv(req, content, 1024);
-    if (ret <= 0)
-    {
-        free(content);
-        return ESP_FAIL;
-    }
-    content[ret] = '\0';
-
-    cJSON *root = cJSON_Parse(content);
-    free(content);
-
-    if (root == NULL)
-    {
-        httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, "Invalid JSON");
-        return ESP_FAIL;
-    }
-
-    mqtt_config_t new_config;
-    mqtt_get_config(&new_config); // 获取当前配置作为基础
-
-    // 解析新的配置
-    cJSON *enabled = cJSON_GetObjectItem(root, "enabled");
-    cJSON *broker_url = cJSON_GetObjectItem(root, "broker_url");
-    cJSON *username = cJSON_GetObjectItem(root, "username");
-    cJSON *password = cJSON_GetObjectItem(root, "password");
-    cJSON *topic = cJSON_GetObjectItem(root, "topic");
-    cJSON *group_ids = cJSON_GetObjectItem(root, "group_ids");
-    cJSON *publish_interval = cJSON_GetObjectItem(root, "publish_interval");
-
-    if (enabled)
-        new_config.enabled = enabled->valueint;
-    if (broker_url && cJSON_IsString(broker_url))
-    {
-        strncpy(new_config.broker_url, broker_url->valuestring, sizeof(new_config.broker_url) - 1);
-    }
-    if (username && cJSON_IsString(username))
-    {
-        strncpy(new_config.username, username->valuestring, sizeof(new_config.username) - 1);
-    }
-    if (password && cJSON_IsString(password))
-    {
-        strncpy(new_config.password, password->valuestring, sizeof(new_config.password) - 1);
-    }
-    if (topic && cJSON_IsString(topic))
-    {
-        strncpy(new_config.topic, topic->valuestring, sizeof(new_config.topic) - 1);
-    }
-
-    // 处理组ID数组
-    if (group_ids && cJSON_IsArray(group_ids))
-    {
-        int count = cJSON_GetArraySize(group_ids);
-        if (count > MAX_POLL_GROUPS)
-            count = MAX_POLL_GROUPS;
-        new_config.group_count = count;
-
-        for (int i = 0; i < count; i++)
-        {
-            cJSON *group_id = cJSON_GetArrayItem(group_ids, i);
-            if (group_id && cJSON_IsNumber(group_id))
-            {
-                new_config.group_ids[i] = group_id->valueint;
-            }
-        }
-    }
-
-    if (publish_interval)
-        new_config.publish_interval = publish_interval->valueint;
-
-    // 更新MQTT配置
-    esp_err_t err = mqtt_update_config(&new_config);
-    if (err != ESP_OK)
-    {
-        cJSON_Delete(root);
-        httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "Failed to update MQTT configuration");
-        return ESP_FAIL;
-    }
-
-    cJSON_Delete(root);
-    httpd_resp_sendstr(req, "{\"status\":\"ok\"}");
-    return ESP_OK;
-}
-
 // URI处理结构
+static const httpd_uri_t html = {
+    .uri = "/",
+    .method = HTTP_GET,
+    .handler = get_html_handler,
+    .user_ctx = NULL};
+
 static const httpd_uri_t mqtt_config_get = {
     .uri = "/api/mqtt/config",
     .method = HTTP_GET,
@@ -342,28 +355,22 @@ static const httpd_uri_t mqtt_config_post = {
     .handler = update_mqtt_config_handler,
     .user_ctx = NULL};
 
+static const httpd_uri_t modbus_config_get = {
+    .uri = "/api/config",
+    .method = HTTP_GET,
+    .handler = get_modbus_config_handler,
+    .user_ctx = NULL};
+
+static const httpd_uri_t modbus_config_post = {
+    .uri = "/api/config",
+    .method = HTTP_POST,
+    .handler = update_modbus_config_handler,
+    .user_ctx = NULL};
+
 static const httpd_uri_t wifi_config = {
     .uri = "/api/wifi/config",
     .method = HTTP_POST,
     .handler = wifi_config_handler,
-    .user_ctx = NULL};
-
-static const httpd_uri_t html = {
-    .uri = "/",
-    .method = HTTP_GET,
-    .handler = get_html_handler,
-    .user_ctx = NULL};
-
-static const httpd_uri_t config_get = {
-    .uri = "/api/config",
-    .method = HTTP_GET,
-    .handler = get_config_handler,
-    .user_ctx = NULL};
-
-static const httpd_uri_t config_post = {
-    .uri = "/api/config",
-    .method = HTTP_POST,
-    .handler = update_config_handler,
     .user_ctx = NULL};
 
 httpd_handle_t start_webserver(void)
@@ -375,11 +382,11 @@ httpd_handle_t start_webserver(void)
     if (httpd_start(&server, &config) == ESP_OK)
     {
         httpd_register_uri_handler(server, &html);
-        httpd_register_uri_handler(server, &config_get);
-        httpd_register_uri_handler(server, &config_post);
-        httpd_register_uri_handler(server, &wifi_config);
+        httpd_register_uri_handler(server, &modbus_config_get);
+        httpd_register_uri_handler(server, &modbus_config_post);
         httpd_register_uri_handler(server, &mqtt_config_get);
         httpd_register_uri_handler(server, &mqtt_config_post);
+        httpd_register_uri_handler(server, &wifi_config);
         ESP_LOGI(TAG, "HTTP服务器启动成功");
         return server;
     }

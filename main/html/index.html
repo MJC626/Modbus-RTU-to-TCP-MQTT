@@ -6,7 +6,6 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>系统配置界面</title>
     <style>
-        /* 基础样式设置 */
         body {
             font-family: Arial, sans-serif;
             max-width: 1200px;
@@ -14,8 +13,6 @@
             padding: 20px;
             background-color: #f5f5f5;
         }
-
-        /* 主容器样式 */
         .container {
             background-color: white;
             padding: 20px;
@@ -23,13 +20,9 @@
             box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
             position: relative;
         }
-
-        /* 表单组样式 */
         .form-group {
             margin-bottom: 15px;
         }
-
-        /* 组容器样式：用于包裹每个Modbus轮询组的配置 */
         .group-container {
             border: 1px solid #ddd;
             padding: 15px;
@@ -37,15 +30,11 @@
             border-radius: 4px;
             background-color: #f9f9f9;
         }
-
-        /* 标签样式 */
         label {
             display: inline-block;
             width: 120px;
             margin-right: 10px;
         }
-
-        /* 输入框和选择框统一样式 */
         input[type="number"],
         input[type="text"],
         input[type="password"],
@@ -55,8 +44,6 @@
             border: 1px solid #ddd;
             border-radius: 4px;
         }
-
-        /* 按钮基础样式 */
         button {
             background-color: #4CAF50;
             color: white;
@@ -65,20 +52,14 @@
             border-radius: 4px;
             cursor: pointer;
         }
-
-        /* 按钮悬停效果 */
         button:hover {
             background-color: #45a049;
         }
-
-        /* 系统配置按钮定位 */
         .system-config {
             position: absolute;
             top: 20px;
             right: 20px;
         }
-
-        /* 模态框基础样式 */
         .modal {
             display: none;
             position: fixed;
@@ -89,8 +70,6 @@
             height: 100%;
             background-color: rgba(0, 0, 0, 0.4);
         }
-
-        /* 模态框内容样式 */
         .modal-content {
             background-color: #fefefe;
             margin: 15% auto;
@@ -100,8 +79,6 @@
             max-width: 500px;
             border-radius: 8px;
         }
-
-        /* 关闭按钮样式 */
         .close {
             color: #aaa;
             float: right;
@@ -109,43 +86,29 @@
             font-weight: bold;
             cursor: pointer;
         }
-
-        /* 关闭按钮悬停效果 */
         .close:hover {
             color: black;
         }
-
-        /* 轮询组标题栏样式 */
         .group-header {
             display: flex;
             justify-content: space-between;
             align-items: center;
             margin-bottom: 10px;
         }
-
-        /* 轮询组标题文字样式 */
         .group-title {
             font-weight: bold;
         }
-
-        /* 成功提示信息样式 */
         .success {
             color: green;
             margin-top: 10px;
         }
-
-        /* 错误提示信息样式 */
         .error {
             color: red;
             margin-top: 10px;
         }
-
-        /* 标签页头部样式 */
         .tab-header {
             margin-bottom: 20px;
         }
-
-        /* 标签页按钮样式 */
         .tab-button {
             background-color: #f1f1f1;
             color: black;
@@ -155,52 +118,41 @@
             margin-right: 10px;
             cursor: pointer;
         }
-
-        /* 激活状态的标签页按钮样式 */
         .tab-button.active {
             background-color: #4CAF50;
             color: white;
         }
-
-        /* MQTT连接状态显示区域样式 */
         #mqtt_connection_status {
+            color: green;
             margin-top: 10px;
             padding: 5px;
             border-radius: 4px;
         }
-
-        /* MQTT组复选框标签样式 */
         .mqtt-group-checkbox label {
             display: inline-block;
             width: auto;
             margin-right: 20px;
         }
-
-        /* MQTT组复选框输入框样式 */
         .mqtt-group-checkbox input[type="checkbox"] {
             margin-right: 5px;
         }
-
-        /* MQTT组容器样式调整 */
         #mqtt_groups_container {
             margin-left: 10px;
             margin-top: 5px;
         }
-
-        /* MQTT组标题样式 */
         .mqtt-groups-title {
             margin-bottom: 10px;
             font-weight: normal;
         }
-
-        /* 按钮组样式 */
         .button-group {
             margin: 20px 0;
         }
-
-        /* 刷新按钮悬停效果 */
         .button-group button:hover {
             opacity: 0.9;
+        }
+        .mqtt-group-checkbox select {
+            width: 120px;
+            margin-left: 10px;
         }
     </style>
 </head>
@@ -313,15 +265,12 @@
         </div>
     </div>
     <script>
-        // 常量定义
-        const MAX_REGISTERS_PER_GROUP = 100; // 每组最大寄存器数量
+        const MAX_REGISTERS_PER_GROUP = 100;
         let currentConfig = {
             poll_interval: 1000,
             group_count: 1,
             groups: []
         };
-
-        // 模态框控制函数
         function openWifiModal() {
             document.getElementById('wifiModal').style.display = 'block';
         }
@@ -329,27 +278,19 @@
         function closeWifiModal() {
             document.getElementById('wifiModal').style.display = 'none';
         }
-
-        // 点击模态框外部关闭模态框
         window.onclick = function (event) {
             if (event.target === document.getElementById('wifiModal')) {
                 closeWifiModal();
             }
         }
-
-        // WiFi配置保存函数
         async function saveWifiConfig() {
             const ssid = document.getElementById('wifi_ssid').value;
             const password = document.getElementById('wifi_password').value;
-
-            // 验证输入
             if (!ssid || !password) {
                 alert('请输入SSID和密码');
                 return;
             }
-
             try {
-                // 发送WiFi配置到服务器
                 const response = await fetch('/api/wifi/config', {
                     method: 'POST',
                     headers: {
@@ -364,7 +305,6 @@
                 const result = await response.json();
                 const statusDiv = document.getElementById('wifi_status');
 
-                // 处理保存结果
                 if (result.status === 'ok') {
                     statusDiv.innerHTML = '<div class="success">' + result.message + '</div>';
                     setTimeout(() => {
@@ -380,8 +320,6 @@
             }
         }
 
-        // MQTT相关函数
-        // 获取MQTT配置
         async function fetchMqttConfig() {
             const statusDiv = document.getElementById('mqtt_status');
             try {
@@ -402,45 +340,51 @@
             }
         }
 
-        // 更新MQTT界面
         function updateMqttUI(config) {
-            // 更新基本字段
             document.getElementById('mqtt_enabled').checked = config.enabled;
             document.getElementById('mqtt_broker').value = config.broker_url;
             document.getElementById('mqtt_username').value = config.username;
             document.getElementById('mqtt_topic').value = config.topic;
             document.getElementById('mqtt_interval').value = config.publish_interval;
 
-            // 确保group_ids是数组
             const selectedGroups = Array.isArray(config.group_ids) ? config.group_ids : [];
+            const parseMethods = Array.isArray(config.parse_methods) ? config.parse_methods : [];
 
-            // 更新组选择UI
             const groupsContainer = document.getElementById('mqtt_groups_container');
             groupsContainer.innerHTML = '<div class="mqtt-groups-title">轮询组：</div>';
 
-            // 为每个可用组创建复选框
             for (let i = 0; i < currentConfig.group_count; i++) {
                 const checkboxDiv = document.createElement('div');
                 checkboxDiv.className = 'mqtt-group-checkbox';
                 const isChecked = selectedGroups.includes(i);
 
                 checkboxDiv.innerHTML = `
-                        <label>
-                            <input type="checkbox" 
-                                   id="mqtt_group_${i}" 
-                                   value="${i}"
-                                   ${isChecked ? 'checked' : ''}>
-                            组 ${i + 1}
-                        </label>
-                    `;
+            <label>
+                <input type="checkbox" 
+                       id="mqtt_group_${i}" 
+                       value="${i}"
+                       ${isChecked ? 'checked' : ''}>
+                组 ${i + 1}
+            </label>
+            <select id="mqtt_parse_${i}" style="margin-left: 10px;">
+                <option value="0" ${parseMethods[i] === 0 ? 'selected' : ''}>有符号16位整数</option>
+                <option value="1" ${parseMethods[i] === 1 ? 'selected' : ''}>无符号16位整数</option>
+                <option value="2" ${parseMethods[i] === 2 ? 'selected' : ''}>32位整数 - ABCD</option>
+                <option value="3" ${parseMethods[i] === 3 ? 'selected' : ''}>32位整数 - CDAB</option>
+                <option value="4" ${parseMethods[i] === 4 ? 'selected' : ''}>32位整数 - BADC</option>
+                <option value="5" ${parseMethods[i] === 5 ? 'selected' : ''}>32位整数 - DCBA</option>
+                <option value="6" ${parseMethods[i] === 6 ? 'selected' : ''}>32位浮点 - ABCD</option>
+                <option value="7" ${parseMethods[i] === 7 ? 'selected' : ''}>32位浮点 - CDAB</option>
+                <option value="8" ${parseMethods[i] === 8 ? 'selected' : ''}>32位浮点 - BADC</option>
+                <option value="9" ${parseMethods[i] === 9 ? 'selected' : ''}>32位浮点 - DCBA</option>
+            </select>
+        `;
                 groupsContainer.appendChild(checkboxDiv);
             }
 
-            // 更新连接状态显示
             updateMqttConnectionStatus(config.connected);
         }
 
-        // 更新MQTT连接状态
         function updateMqttConnectionStatus(connected) {
             const statusDiv = document.getElementById('mqtt_connection_status');
             if (connected) {
@@ -452,12 +396,16 @@
             }
         }
 
-        // 保存MQTT配置函数
         async function saveMqttConfig() {
-            // 获取所有选中的复选框
-            const selectedGroups = Array.from(
-                document.querySelectorAll('#mqtt_groups_container input[type="checkbox"]:checked')
-            ).map(checkbox => parseInt(checkbox.value));
+            const selectedGroups = [];
+            const parseMethods = [];
+
+            document.querySelectorAll('#mqtt_groups_container input[type="checkbox"]').forEach((checkbox, index) => {
+                if (checkbox.checked) {
+                    selectedGroups.push(parseInt(checkbox.value));
+                    parseMethods.push(parseInt(document.getElementById(`mqtt_parse_${checkbox.value}`).value));
+                }
+            });
 
             const config = {
                 enabled: document.getElementById('mqtt_enabled').checked,
@@ -466,6 +414,7 @@
                 password: document.getElementById('mqtt_password').value,
                 topic: document.getElementById('mqtt_topic').value,
                 group_ids: selectedGroups,
+                parse_methods: parseMethods,
                 publish_interval: parseInt(document.getElementById('mqtt_interval').value)
             };
 
@@ -481,10 +430,7 @@
                 const statusDiv = document.getElementById('mqtt_status');
                 if (response.ok) {
                     statusDiv.innerHTML = '<div class="success">MQTT配置已保存</div>';
-                    setTimeout(() => {
-                        statusDiv.innerHTML = '';
-                    }, 3000);
-                    // 重新获取配置以更新UI
+                    setTimeout(() => statusDiv.innerHTML = '', 3000);
                     await fetchMqttConfig();
                 } else {
                     statusDiv.innerHTML = '<div class="error">MQTT配置保存失败</div>';
@@ -494,18 +440,14 @@
                 alert('保存MQTT配置失败');
             }
         }
-
         function showTab(tabName) {
-            // 更新标签页按钮状态
             document.getElementById('modbus-tab').classList.remove('active');
             document.getElementById('mqtt-tab').classList.remove('active');
             document.getElementById(`${tabName}-tab`).classList.add('active');
 
-            // 显示/隐藏内容
             document.getElementById('modbus-config').style.display = tabName === 'modbus' ? 'block' : 'none';
             document.getElementById('mqtt-config').style.display = tabName === 'mqtt' ? 'block' : 'none';
         }
-        // 获取Modbus配置
         async function fetchConfig() {
             const statusDiv = document.getElementById('save_status');
             try {
@@ -556,7 +498,6 @@
                     uart_port: ''
                 };
 
-                // 转换功能码为字符串进行比较
                 const functionCode = String(group.function_code).padStart(2, '0');
 
                 const groupHtml = `
