@@ -407,45 +407,67 @@ esp_err_t save_mqtt_config(mqtt_config_t *config) {
     }
 
     // 保存字符串配置
-    err = nvs_set_str(nvs_handle, "broker_url", config->broker_url);
-    if (err != ESP_OK) goto end;
-    
-    err = nvs_set_str(nvs_handle, "username", config->username);
-    if (err != ESP_OK) goto end;
-    
-    err = nvs_set_str(nvs_handle, "password", config->password);
-    if (err != ESP_OK) goto end;
-    
-    err = nvs_set_str(nvs_handle, "topic", config->topic);
-    if (err != ESP_OK) goto end;
+    if ((err = nvs_set_str(nvs_handle, "broker_url", config->broker_url)) != ESP_OK) {
+        ESP_LOGE(TAG, "Failed to save broker_url: %s", esp_err_to_name(err));
+        goto end;
+    }
+    if ((err = nvs_set_str(nvs_handle, "username", config->username)) != ESP_OK) {
+        ESP_LOGE(TAG, "Failed to save username: %s", esp_err_to_name(err));
+        goto end;
+    }
+    if ((err = nvs_set_str(nvs_handle, "password", config->password)) != ESP_OK) {
+        ESP_LOGE(TAG, "Failed to save password: %s", esp_err_to_name(err));
+        goto end;
+    }
+    if ((err = nvs_set_str(nvs_handle, "topic", config->topic)) != ESP_OK) {
+        ESP_LOGE(TAG, "Failed to save topic: %s", esp_err_to_name(err));
+        goto end;
+    }
 
     // 保存基本类型配置
-    err = nvs_set_u8(nvs_handle, "enabled", config->enabled);
-    if (err != ESP_OK) goto end;
-    
-    err = nvs_set_u8(nvs_handle, "group_count", config->group_count);
-    if (err != ESP_OK) goto end;
-    
-    err = nvs_set_u32(nvs_handle, "publish_interval", config->publish_interval);
-    if (err != ESP_OK) goto end;
+    if ((err = nvs_set_u8(nvs_handle, "enabled", config->enabled)) != ESP_OK) {
+        ESP_LOGE(TAG, "Failed to save enabled: %s", esp_err_to_name(err));
+        goto end;
+    }
+    if ((err = nvs_set_u8(nvs_handle, "group_count", config->group_count)) != ESP_OK) {
+        ESP_LOGE(TAG, "Failed to save group_count: %s", esp_err_to_name(err));
+        goto end;
+    }
+
+    // 修改键名，避免超出 15 字符限制
+    if ((err = nvs_set_u32(nvs_handle, "pub_intvl", config->publish_interval)) != ESP_OK) {
+        ESP_LOGE(TAG, "Failed to save pub_intvl: %s", esp_err_to_name(err));
+        goto end;
+    }
 
     // 保存数组配置
+    ESP_LOGI(TAG, "Saving group_ids, size: %d", sizeof(config->group_ids));
     err = nvs_set_blob(nvs_handle, "group_ids", config->group_ids, sizeof(config->group_ids));
-    if (err != ESP_OK) goto end;
-    
+    if (err != ESP_OK) {
+        ESP_LOGE(TAG, "Failed to save group_ids: %s", esp_err_to_name(err));
+        goto end;
+    }
+
+    ESP_LOGI(TAG, "Saving parse_methods, size: %d", sizeof(config->parse_methods));
     err = nvs_set_blob(nvs_handle, "parse_methods", config->parse_methods, sizeof(config->parse_methods));
-    if (err != ESP_OK) goto end;
+    if (err != ESP_OK) {
+        ESP_LOGE(TAG, "Failed to save parse_methods: %s", esp_err_to_name(err));
+        goto end;
+    }
 
     // 提交更改
     err = nvs_commit(nvs_handle);
     if (err != ESP_OK) {
         ESP_LOGE(TAG, "NVS commit error: %s", esp_err_to_name(err));
+    } else {
+        ESP_LOGI(TAG, "MQTT config saved successfully.");
     }
 
 end:
     nvs_close(nvs_handle);
     return err;
 }
+
 
 // 从NVS中加载modbus配置
 esp_err_t load_mqtt_config(mqtt_config_t *config) {
@@ -497,8 +519,11 @@ esp_err_t load_mqtt_config(mqtt_config_t *config) {
     err = nvs_get_u8(nvs_handle, "group_count", &config->group_count);
     if (err != ESP_OK && err != ESP_ERR_NVS_NOT_FOUND) goto end;
     
-    err = nvs_get_u32(nvs_handle, "publish_interval", &config->publish_interval);
-    if (err != ESP_OK && err != ESP_ERR_NVS_NOT_FOUND) goto end;
+    err = nvs_get_u32(nvs_handle, "pub_intvl", &config->publish_interval);
+    if (err != ESP_OK && err != ESP_ERR_NVS_NOT_FOUND) {
+    ESP_LOGE(TAG, "Failed to load pub_intvl: %s", esp_err_to_name(err));
+    goto end;
+    }
 
     // 读取数组配置
     size_t blob_size;
