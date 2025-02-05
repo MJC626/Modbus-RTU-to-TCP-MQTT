@@ -10,6 +10,8 @@
 #include "simple_wifi_sta.h"
 #include "uart_rtu.h"
 #include "mqtt.h" 
+#include "tcp_server.h"
+#include "tcp_slave_regs.h"
 
 // 日志标签
 static const char* TAG = "main";
@@ -47,6 +49,7 @@ void app_main(void) {
     }
     
     // 在NVS初始化完成后立即加载配置
+    //加载modbusrtu主站配置
     ESP_LOGI(TAG, "正在从NVS加载配置...");
     ret = load_modbus_config_from_nvs();
     if (ret != ESP_OK) {
@@ -58,11 +61,16 @@ void app_main(void) {
     if (ret != ESP_OK) {
     ESP_LOGW(TAG, "加载MQTT配置失败使用默认配置");
     }
+    // 加载TCPSLAVE配置
+    ESP_LOGI(TAG, "正在从NVS加载TCPSLAVE配置...");
+    ret = load_tcp_slave_config_from_nvs(&tcp_slave);
+    if (ret != ESP_OK) {
+    ESP_LOGW(TAG, "加载TCPSLAVE配置失败使用默认配置");
+    }
+
 
     // 初始化串口
     ESP_ERROR_CHECK(uart_init());
-    // 初始化MQTT
-    ESP_ERROR_CHECK(mqtt_init());
     
     // 创建事件组用于 WiFi 连接同步
     s_wifi_ev = xEventGroupCreate();
@@ -79,14 +87,18 @@ void app_main(void) {
         
         // 如果MQTT已配置且启用，则启动MQTT客户端
         if (mqtt_config.enabled && strlen(mqtt_config.broker_url) > 0) {
+            // 初始化MQTT
+            ESP_ERROR_CHECK(mqtt_init());
             ESP_LOGI(TAG, "Starting MQTT client");
             ret = mqtt_start();
             if (ret != ESP_OK) {
                 ESP_LOGE(TAG, "Failed to start MQTT client: %d", ret);
             }
         }
-        //启动modbus
+        //启动modbus_rtu
         start_modbus();
+        //启动modbus_tcp
+        start_tcp_server();
 
     }
     

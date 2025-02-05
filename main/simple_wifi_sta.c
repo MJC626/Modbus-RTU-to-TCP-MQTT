@@ -1,10 +1,6 @@
 #include "simple_wifi_sta.h"
 #include <string.h>
 #include <stdlib.h>
-#include "freertos/FreeRTOS.h"
-#include "freertos/task.h"
-#include "esp_system.h"
-#include "nvs_flash.h"
 #include "nvs.h"
 #include "esp_wifi.h"
 #include "esp_event.h"

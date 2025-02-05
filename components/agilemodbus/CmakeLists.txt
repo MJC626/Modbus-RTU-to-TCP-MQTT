@@ -1,2 +1,3 @@
-idf_component_register(SRCS "agile_modbus.c" "agile_modbus_rtu.c" "agile_modbus_tcp.c"
+idf_component_register(SRCS "agile_modbus.c" "agile_modbus_rtu.c" "agile_modbus_tcp.c" "agile_modbus_slave_util.c"
+
                     INCLUDE_DIRS ".")

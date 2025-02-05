@@ -4,6 +4,7 @@
 #include "esp_log.h"
 #include "simple_wifi_sta.h"
 #include "mqtt.h"
+#include "tcp_slave_regs.h"
 
 // 日志标签
 static const char *TAG = "web_server";
@@ -283,7 +284,177 @@ esp_err_t update_mqtt_config_handler(httpd_req_t *req)
     return ESP_OK;
 }
 
-// WiFi配置获取处理函数
+// TCP从站配置获取处理函数
+esp_err_t get_tcp_slave_config_handler(httpd_req_t *req)
+{
+    // 创建根 JSON 对象
+    cJSON *root = cJSON_CreateObject();
+    if (!root) {
+        httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "Failed to create JSON object");
+        return ESP_FAIL;
+    }
+
+    // 添加基础参数
+    cJSON_AddBoolToObject(root, "enabled", tcp_slave.enabled);
+    cJSON_AddNumberToObject(root, "server_port", tcp_slave.server_port);
+    cJSON_AddNumberToObject(root, "slave_address", tcp_slave.slave_address);
+
+    // 创建映射配置数组
+    cJSON *maps = cJSON_CreateArray();
+    if (!maps) {
+        cJSON_Delete(root);
+        httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "Failed to create maps array");
+        return ESP_FAIL;
+    }
+
+    // 遍历所有映射配置项
+    for (int i = 0; i < MAX_MAPS; i++) {
+        cJSON *map = cJSON_CreateObject();
+        if (!map) {
+            cJSON_Delete(root);
+            cJSON_Delete(maps);
+            httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "Failed to create map object");
+            return ESP_FAIL;
+        }
+
+        // 添加映射配置字段
+        cJSON_AddNumberToObject(map, "type", tcp_slave.maps[i].type);
+        cJSON_AddNumberToObject(map, "group_index", tcp_slave.maps[i].group_index);
+        cJSON_AddNumberToObject(map, "master_start_addr", tcp_slave.maps[i].master_start_addr);
+        cJSON_AddNumberToObject(map, "slave_start_addr", tcp_slave.maps[i].slave_start_addr);
+        cJSON_AddNumberToObject(map, "count", tcp_slave.maps[i].count);
+
+        // 将映射配置添加到数组
+        cJSON_AddItemToArray(maps, map);
+    }
+
+    // 将映射配置数组添加到根对象
+    cJSON_AddItemToObject(root, "maps", maps);
+
+    // 创建寄存器尺寸配置对象
+    cJSON *reg_sizes = cJSON_CreateObject();
+    if (!reg_sizes) {
+        cJSON_Delete(root);
+        httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "Failed to create reg_sizes object");
+        return ESP_FAIL;
+    }
+
+    // 添加寄存器尺寸配置字段
+    cJSON_AddNumberToObject(reg_sizes, "tab_bits_size", tcp_slave.reg_sizes.tab_bits_size);
+    cJSON_AddNumberToObject(reg_sizes, "tab_input_bits_size", tcp_slave.reg_sizes.tab_input_bits_size);
+    cJSON_AddNumberToObject(reg_sizes, "tab_registers_size", tcp_slave.reg_sizes.tab_registers_size);
+    cJSON_AddNumberToObject(reg_sizes, "tab_input_registers_size", tcp_slave.reg_sizes.tab_input_registers_size);
+
+    // 将寄存器尺寸配置添加到根对象
+    cJSON_AddItemToObject(root, "reg_sizes", reg_sizes);
+
+    // 将 JSON 对象转换为字符串
+    char *json_str = cJSON_Print(root);
+    if (!json_str) {
+        cJSON_Delete(root);
+        httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "Failed to print JSON");
+        return ESP_FAIL;
+    }
+
+    // 发送 HTTP 响应
+    httpd_resp_set_type(req, "application/json");
+    httpd_resp_send(req, json_str, strlen(json_str));
+
+    // 释放资源
+    free(json_str);
+    cJSON_Delete(root);
+
+    return ESP_OK;
+}
+
+// TCP从站配置更新处理函数
+esp_err_t post_tcp_slave_config_handler(httpd_req_t *req)
+{
+    char *content = malloc(1024);
+    int ret = httpd_req_recv(req, content, 1024);
+    if (ret <= 0) {
+        free(content);
+        return ESP_FAIL;
+    }
+    content[ret] = '\0';
+
+    // 解析 JSON 内容
+    cJSON *root = cJSON_Parse(content);
+    if (!root || !cJSON_IsObject(root)) {
+        httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, "Invalid JSON");
+        return ESP_FAIL;
+    }
+
+    // 解析基础参数
+    if (cJSON_HasObjectItem(root, "enabled")) {
+        tcp_slave.enabled = cJSON_GetObjectItem(root, "enabled")->valueint;
+    }
+    if (cJSON_HasObjectItem(root, "server_port")) {
+        tcp_slave.server_port = cJSON_GetObjectItem(root, "server_port")->valueint;
+    }
+    if (cJSON_HasObjectItem(root, "slave_address")) {
+        tcp_slave.slave_address = cJSON_GetObjectItem(root, "slave_address")->valueint;
+    }
+
+    // 解析寄存器尺寸配置
+    cJSON *reg_sizes = cJSON_GetObjectItem(root, "reg_sizes");
+    if (reg_sizes && cJSON_IsObject(reg_sizes)) {
+        if (cJSON_HasObjectItem(reg_sizes, "tab_bits_size")) {
+            tcp_slave.reg_sizes.tab_bits_size = cJSON_GetObjectItem(reg_sizes, "tab_bits_size")->valueint;
+        }
+        if (cJSON_HasObjectItem(reg_sizes, "tab_input_bits_size")) {
+            tcp_slave.reg_sizes.tab_input_bits_size = cJSON_GetObjectItem(reg_sizes, "tab_input_bits_size")->valueint;
+        }
+        if (cJSON_HasObjectItem(reg_sizes, "tab_registers_size")) {
+            tcp_slave.reg_sizes.tab_registers_size = cJSON_GetObjectItem(reg_sizes, "tab_registers_size")->valueint;
+        }
+        if (cJSON_HasObjectItem(reg_sizes, "tab_input_registers_size")) {
+            tcp_slave.reg_sizes.tab_input_registers_size = cJSON_GetObjectItem(reg_sizes, "tab_input_registers_size")->valueint;
+        }
+    }
+
+    // 解析映射配置
+    cJSON *maps = cJSON_GetObjectItem(root, "maps");
+    if (maps && cJSON_IsArray(maps)) {
+        int map_count = cJSON_GetArraySize(maps);
+        map_count = map_count > MAX_MAPS ? MAX_MAPS : map_count; // 限制最大映射数量
+
+        for (int i = 0; i < map_count; i++) {
+            cJSON *map = cJSON_GetArrayItem(maps, i);
+            if (map && cJSON_IsObject(map)) {
+                if (cJSON_HasObjectItem(map, "type")) {
+                    tcp_slave.maps[i].type = cJSON_GetObjectItem(map, "type")->valueint;
+                }
+                if (cJSON_HasObjectItem(map, "group_index")) {
+                    tcp_slave.maps[i].group_index = cJSON_GetObjectItem(map, "group_index")->valueint;
+                }
+                if (cJSON_HasObjectItem(map, "master_start_addr")) {
+                    tcp_slave.maps[i].master_start_addr = cJSON_GetObjectItem(map, "master_start_addr")->valueint;
+                }
+                if (cJSON_HasObjectItem(map, "slave_start_addr")) {
+                    tcp_slave.maps[i].slave_start_addr = cJSON_GetObjectItem(map, "slave_start_addr")->valueint;
+                }
+                if (cJSON_HasObjectItem(map, "count")) {
+                    tcp_slave.maps[i].count = cJSON_GetObjectItem(map, "count")->valueint;
+                }
+            }
+        }
+    }
+
+    // 释放 JSON 对象
+    cJSON_Delete(root);
+    // 发送成功响应
+    httpd_resp_sendstr(req, "{\"status\":\"ok\"}");
+    esp_err_t save_err = save_tcp_slave_config_to_nvs(&tcp_slave);
+    if (save_err != ESP_OK)
+    {
+        ESP_LOGE(TAG, "NVS存储失败");
+    }
+
+    return ESP_OK;
+}
+
+// WiFi配置更新处理函数
 esp_err_t wifi_config_handler(httpd_req_t *req)
 {
     char content[256];
@@ -343,6 +514,18 @@ static const httpd_uri_t html = {
     .handler = get_html_handler,
     .user_ctx = NULL};
 
+static const httpd_uri_t modbus_config_get = {
+    .uri = "/api/config",
+    .method = HTTP_GET,
+    .handler = get_modbus_config_handler,
+    .user_ctx = NULL};
+
+static const httpd_uri_t modbus_config_post = {
+    .uri = "/api/config",
+    .method = HTTP_POST,
+    .handler = update_modbus_config_handler,
+    .user_ctx = NULL};
+
 static const httpd_uri_t mqtt_config_get = {
     .uri = "/api/mqtt/config",
     .method = HTTP_GET,
@@ -355,16 +538,16 @@ static const httpd_uri_t mqtt_config_post = {
     .handler = update_mqtt_config_handler,
     .user_ctx = NULL};
 
-static const httpd_uri_t modbus_config_get = {
-    .uri = "/api/config",
+static const httpd_uri_t tcp_slave_get = {
+    .uri = "/api/tcp_slave/config",
     .method = HTTP_GET,
-    .handler = get_modbus_config_handler,
+    .handler = get_tcp_slave_config_handler,
     .user_ctx = NULL};
 
-static const httpd_uri_t modbus_config_post = {
-    .uri = "/api/config",
+static const httpd_uri_t tcp_slave_post = {
+    .uri = "/api/tcp_slave/config",
     .method = HTTP_POST,
-    .handler = update_modbus_config_handler,
+    .handler = post_tcp_slave_config_handler,
     .user_ctx = NULL};
 
 static const httpd_uri_t wifi_config = {
@@ -386,6 +569,8 @@ httpd_handle_t start_webserver(void)
         httpd_register_uri_handler(server, &modbus_config_post);
         httpd_register_uri_handler(server, &mqtt_config_get);
         httpd_register_uri_handler(server, &mqtt_config_post);
+        httpd_register_uri_handler(server, &tcp_slave_get);
+        httpd_register_uri_handler(server, &tcp_slave_post);
         httpd_register_uri_handler(server, &wifi_config);
         ESP_LOGI(TAG, "HTTP服务器启动成功");
         return server;

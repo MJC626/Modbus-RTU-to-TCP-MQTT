@@ -300,7 +300,7 @@ esp_err_t mqtt_init(void)
                                  "mqtt_publish",
                                  4096,
                                  NULL,
-                                 3,
+                                 6,
                                  &publish_task_handle);
 
     if (ret != pdPASS)
