@@ -307,7 +307,6 @@ esp_err_t get_tcp_slave_config_handler(httpd_req_t *req)
         return ESP_FAIL;
     }
 
-    // 只输出 group_index 不为 0 的映射配置
     for (int i = 0; i < MAX_MAPS; i++) {
             cJSON *map = cJSON_CreateObject();
             if (!map) {
