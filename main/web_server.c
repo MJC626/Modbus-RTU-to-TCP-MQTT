@@ -141,7 +141,7 @@ esp_err_t update_modbus_config_handler(httpd_req_t *req)
             if (uart_port)
             {
                 int port = uart_port->valueint;
-                if (port == 1 || port == 2)
+                if (port == 1 || port == 2 || port == 3)
                 {
                     modbus_config.groups[i].uart_port = port;
                 }

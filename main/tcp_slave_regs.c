@@ -10,7 +10,7 @@ SemaphoreHandle_t modbus_mutex = NULL;
 
 // 默认 tcp_slave 配置
 tcp_slave_t tcp_slave = {
-     .enabled = true,        // 默认不启用
+     .enabled = false,        // 默认不启用
     .server_port = 502,       // Modbus TCP 默认端口
     .slave_address = 123,       // 默认从站地址
     

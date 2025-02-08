@@ -9,18 +9,22 @@
 // 日志标签
 static const char *TAG = "modbus_task";
 
-// 两个 Modbus 主站定义发送和接收缓冲区
+// 三个 Modbus 主站定义发送和接收缓冲区
 static uint8_t master1_send_buf[AGILE_MODBUS_MAX_ADU_LENGTH];
 static uint8_t master1_recv_buf[AGILE_MODBUS_MAX_ADU_LENGTH];
 static uint8_t master2_send_buf[AGILE_MODBUS_MAX_ADU_LENGTH];
 static uint8_t master2_recv_buf[AGILE_MODBUS_MAX_ADU_LENGTH];
+static uint8_t master3_send_buf[AGILE_MODBUS_MAX_ADU_LENGTH];
+static uint8_t master3_recv_buf[AGILE_MODBUS_MAX_ADU_LENGTH];
 
-// 初始化两个UART的Modbus上下文
+// 初始化三个UART的Modbus上下文
 static modbus_context_t mb_ctx1 = {0};
 static modbus_context_t mb_ctx2 = {0};
+static modbus_context_t mb_ctx3 = {0};
 
 void start_modbus(void)
-{ // 初始化UART1的Modbus
+{ 
+    // 初始化UART1的Modbus
     agile_modbus_rtu_init(&mb_ctx1.ctx_rtu, master1_send_buf, sizeof(master1_send_buf),
                           master1_recv_buf, sizeof(master1_recv_buf));
     mb_ctx1.uart_port = 1;
@@ -30,7 +34,12 @@ void start_modbus(void)
                           master2_recv_buf, sizeof(master2_recv_buf));
     mb_ctx2.uart_port = 2;
 
-    // 创建两个Modbus任务
+    // 初始化UART3(实际使用UART0)的Modbus
+    agile_modbus_rtu_init(&mb_ctx3.ctx_rtu, master3_send_buf, sizeof(master3_send_buf),
+                          master3_recv_buf, sizeof(master3_recv_buf));
+    mb_ctx3.uart_port = 3;
+
+    // 创建三个Modbus任务
     xTaskCreate(modbus_poll_task,
                 "modbus_task1",
                 MODBUS_TASK_STACK_SIZE,
@@ -42,6 +51,13 @@ void start_modbus(void)
                 "modbus_task2",
                 MODBUS_TASK_STACK_SIZE,
                 &mb_ctx2,
+                5,
+                NULL);
+
+    xTaskCreate(modbus_poll_task,
+                "modbus_task3", 
+                MODBUS_TASK_STACK_SIZE,
+                &mb_ctx3,
                 5,
                 NULL);
 }
@@ -107,10 +123,15 @@ void modbus_poll_task(void *pvParameters)
                     send_data1(ctx->send_buf, send_len);
                     read_len = receive_data1(ctx->read_buf, ctx->read_bufsz, 1000, 20);
                 }
-                else
+                else if (mb_ctx->uart_port == 2)
                 {
                     send_data2(ctx->send_buf, send_len);
                     read_len = receive_data2(ctx->read_buf, ctx->read_bufsz, 1000, 20);
+                }
+                else // UART0
+                {
+                    send_data0(ctx->send_buf, send_len);
+                    read_len = receive_data0(ctx->read_buf, ctx->read_bufsz, 1000, 20);
                 }
 
                 if (read_len > 0)

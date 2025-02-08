@@ -10,10 +10,10 @@ modbus_config_t modbus_config = {
     .poll_interval = 1000,
     .group_count = 4,
     .groups = {
-        {.enabled = true, .slave_addr = 30, .function_code = 3, .start_addr = 0, .reg_count = 20, .uart_port = 1},
-        {.enabled = true, .slave_addr = 40, .function_code = 4, .start_addr = 0, .reg_count = 20, .uart_port = 1},
-        {.enabled = true, .slave_addr = 10, .function_code = 1, .start_addr = 0, .reg_count = 20, .uart_port = 1},
-        {.enabled = true, .slave_addr = 20, .function_code = 2, .start_addr = 0, .reg_count = 20, .uart_port = 1},
+        {.enabled = true, .slave_addr = 30, .function_code = 3, .start_addr = 0, .reg_count = 20, .uart_port = 3},
+        {.enabled = true, .slave_addr = 40, .function_code = 4, .start_addr = 0, .reg_count = 20, .uart_port = 3},
+        {.enabled = true, .slave_addr = 10, .function_code = 1, .start_addr = 0, .reg_count = 20, .uart_port = 3},
+        {.enabled = true, .slave_addr = 20, .function_code = 2, .start_addr = 0, .reg_count = 20, .uart_port = 3},
     }
 };
 
