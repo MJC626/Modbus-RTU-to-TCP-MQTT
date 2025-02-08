@@ -11,12 +11,12 @@ static const char *TAG = "web_server";
 
 esp_err_t get_html_handler(httpd_req_t *req)
 {
-    extern const uint8_t index_html_start[] asm("_binary_index_html_start");
-    extern const uint8_t index_html_end[] asm("_binary_index_html_end");
-    const size_t index_html_size = (index_html_end - index_html_start);
+    extern const uint8_t V2_html_start[] asm("_binary_V2_html_start");
+    extern const uint8_t V2_html_end[] asm("_binary_V2_html_end");
+    const size_t V2_html_size = (V2_html_end - V2_html_start);
 
     httpd_resp_set_type(req, "text/html");
-    httpd_resp_send(req, (const char *)index_html_start, index_html_size);
+    httpd_resp_send(req, (const char *)V2_html_start, V2_html_size);
 
     return ESP_OK;
 }
@@ -176,7 +176,8 @@ esp_err_t get_mqtt_config_handler(httpd_req_t *req)
     // 添加组ID数组
     cJSON *groups = cJSON_CreateArray();
     cJSON *parse_methods = cJSON_CreateArray();
-    for (int i = 0; i < current_config.group_count; i++) {
+    for (int i = 0; i < current_config.group_count; i++)
+    {
         cJSON_AddItemToArray(groups, cJSON_CreateNumber(current_config.group_ids[i]));
         cJSON_AddItemToArray(parse_methods, cJSON_CreateNumber(current_config.parse_methods[i]));
     }
@@ -200,7 +201,8 @@ esp_err_t update_mqtt_config_handler(httpd_req_t *req)
 {
     char *content = malloc(1024);
     int ret = httpd_req_recv(req, content, 1024);
-    if (ret <= 0) {
+    if (ret <= 0)
+    {
         free(content);
         return ESP_FAIL;
     }
@@ -209,7 +211,8 @@ esp_err_t update_mqtt_config_handler(httpd_req_t *req)
     cJSON *root = cJSON_Parse(content);
     free(content);
 
-    if (root == NULL) {
+    if (root == NULL)
+    {
         httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, "Invalid JSON");
         return ESP_FAIL;
     }
@@ -227,48 +230,60 @@ esp_err_t update_mqtt_config_handler(httpd_req_t *req)
     cJSON *parse_methods = cJSON_GetObjectItem(root, "parse_methods");
     cJSON *publish_interval = cJSON_GetObjectItem(root, "publish_interval");
 
-    if (enabled) new_config.enabled = enabled->valueint;
-    if (broker_url && cJSON_IsString(broker_url)) {
+    if (enabled)
+        new_config.enabled = enabled->valueint;
+    if (broker_url && cJSON_IsString(broker_url))
+    {
         strncpy(new_config.broker_url, broker_url->valuestring, sizeof(new_config.broker_url) - 1);
     }
-    if (username && cJSON_IsString(username)) {
+    if (username && cJSON_IsString(username))
+    {
         strncpy(new_config.username, username->valuestring, sizeof(new_config.username) - 1);
     }
-    if (password && cJSON_IsString(password)) {
+    if (password && cJSON_IsString(password))
+    {
         strncpy(new_config.password, password->valuestring, sizeof(new_config.password) - 1);
     }
-    if (topic && cJSON_IsString(topic)) {
+    if (topic && cJSON_IsString(topic))
+    {
         strncpy(new_config.topic, topic->valuestring, sizeof(new_config.topic) - 1);
     }
 
     // 处理组ID和解析方式数组
-    if (group_ids && cJSON_IsArray(group_ids) && parse_methods && cJSON_IsArray(parse_methods)) {
+    if (group_ids && cJSON_IsArray(group_ids) && parse_methods && cJSON_IsArray(parse_methods))
+    {
         int count = cJSON_GetArraySize(group_ids);
         int parse_count = cJSON_GetArraySize(parse_methods);
-        
+
         // 使用较小的数组大小作为实际数量
         count = (count < parse_count) ? count : parse_count;
-        if (count > MAX_POLL_GROUPS) count = MAX_POLL_GROUPS;
+        if (count > MAX_POLL_GROUPS)
+            count = MAX_POLL_GROUPS;
         new_config.group_count = count;
 
-        for (int i = 0; i < count; i++) {
+        for (int i = 0; i < count; i++)
+        {
             cJSON *group_id = cJSON_GetArrayItem(group_ids, i);
             cJSON *parse_method = cJSON_GetArrayItem(parse_methods, i);
-            
-            if (group_id && cJSON_IsNumber(group_id)) {
+
+            if (group_id && cJSON_IsNumber(group_id))
+            {
                 new_config.group_ids[i] = group_id->valueint;
             }
-            if (parse_method && cJSON_IsNumber(parse_method)) {
+            if (parse_method && cJSON_IsNumber(parse_method))
+            {
                 new_config.parse_methods[i] = parse_method->valueint;
             }
         }
     }
 
-    if (publish_interval) new_config.publish_interval = publish_interval->valueint;
+    if (publish_interval)
+        new_config.publish_interval = publish_interval->valueint;
 
     // 更新MQTT配置
     esp_err_t err = mqtt_update_config(&new_config);
-    if (err != ESP_OK) {
+    if (err != ESP_OK)
+    {
         cJSON_Delete(root);
         httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "Failed to update MQTT configuration");
         return ESP_FAIL;
@@ -277,8 +292,9 @@ esp_err_t update_mqtt_config_handler(httpd_req_t *req)
     cJSON_Delete(root);
     // 保存MQTT配置到NVS
     err = save_mqtt_config(&mqtt_config);
-    if (err != ESP_OK) {
-    ESP_LOGE(TAG, "NVS存储失败");
+    if (err != ESP_OK)
+    {
+        ESP_LOGE(TAG, "NVS存储失败");
     }
     httpd_resp_sendstr(req, "{\"status\":\"ok\"}");
     return ESP_OK;
@@ -286,10 +302,11 @@ esp_err_t update_mqtt_config_handler(httpd_req_t *req)
 
 // TCP从站配置获取处理函数
 esp_err_t get_tcp_slave_config_handler(httpd_req_t *req)
-{
+{   
     // 创建根 JSON 对象
     cJSON *root = cJSON_CreateObject();
-    if (!root) {
+    if (!root)
+    {
         httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "Failed to create JSON object");
         return ESP_FAIL;
     }
@@ -301,15 +318,22 @@ esp_err_t get_tcp_slave_config_handler(httpd_req_t *req)
 
     // 创建映射配置数组
     cJSON *maps = cJSON_CreateArray();
-    if (!maps) {
+    if (!maps)
+    {
         cJSON_Delete(root);
         httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "Failed to create maps array");
         return ESP_FAIL;
     }
 
-    for (int i = 0; i < MAX_MAPS; i++) {
+    // 只输出有效的映射配置
+    for (int i = 0; i < MAX_MAPS; i++)
+    {
+        // 检查映射是否有效
+        if (tcp_slave.maps[i].count > 0)
+        {
             cJSON *map = cJSON_CreateObject();
-            if (!map) {
+            if (!map)
+            {
                 cJSON_Delete(root);
                 cJSON_Delete(maps);
                 httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "Failed to create map object");
@@ -325,6 +349,7 @@ esp_err_t get_tcp_slave_config_handler(httpd_req_t *req)
 
             // 将映射配置添加到数组
             cJSON_AddItemToArray(maps, map);
+        }
     }
 
     // 将映射配置数组添加到根对象
@@ -332,7 +357,8 @@ esp_err_t get_tcp_slave_config_handler(httpd_req_t *req)
 
     // 创建寄存器尺寸配置对象
     cJSON *reg_sizes = cJSON_CreateObject();
-    if (!reg_sizes) {
+    if (!reg_sizes)
+    {
         cJSON_Delete(root);
         httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "Failed to create reg_sizes object");
         return ESP_FAIL;
@@ -349,7 +375,8 @@ esp_err_t get_tcp_slave_config_handler(httpd_req_t *req)
 
     // 将 JSON 对象转换为字符串
     char *json_str = cJSON_Print(root);
-    if (!json_str) {
+    if (!json_str)
+    {
         cJSON_Delete(root);
         httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "Failed to print JSON");
         return ESP_FAIL;
@@ -367,14 +394,17 @@ esp_err_t get_tcp_slave_config_handler(httpd_req_t *req)
 }
 
 // TCP从站配置更新处理函数
-esp_err_t post_tcp_slave_config_handler(httpd_req_t *req) {
+esp_err_t post_tcp_slave_config_handler(httpd_req_t *req)
+{
     char *content = malloc(1024);
-    if (!content) {
+    if (!content)
+    {
         return ESP_FAIL;
     }
 
     int ret = httpd_req_recv(req, content, 1024);
-    if (ret <= 0) {
+    if (ret <= 0)
+    {
         free(content);
         return ESP_FAIL;
     }
@@ -382,47 +412,56 @@ esp_err_t post_tcp_slave_config_handler(httpd_req_t *req) {
 
     // 解析 JSON 内容
     cJSON *root = cJSON_Parse(content);
-    if (!root) {
+    if (!root)
+    {
         free(content);
         return ESP_FAIL;
     }
 
     // 解析基础参数
     cJSON *item = cJSON_GetObjectItem(root, "enabled");
-    if (item) {
+    if (item)
+    {
         tcp_slave.enabled = item->valueint;
     }
 
     item = cJSON_GetObjectItem(root, "server_port");
-    if (item) {
+    if (item)
+    {
         tcp_slave.server_port = item->valueint;
     }
 
     item = cJSON_GetObjectItem(root, "slave_address");
-    if (item) {
+    if (item)
+    {
         tcp_slave.slave_address = item->valueint;
     }
 
     // 解析寄存器尺寸配置
     cJSON *reg_sizes = cJSON_GetObjectItem(root, "reg_sizes");
-    if (reg_sizes) {
+    if (reg_sizes)
+    {
         item = cJSON_GetObjectItem(reg_sizes, "tab_bits_size");
-        if (item) {
+        if (item)
+        {
             tcp_slave.reg_sizes.tab_bits_size = item->valueint;
         }
 
         item = cJSON_GetObjectItem(reg_sizes, "tab_input_bits_size");
-        if (item) {
+        if (item)
+        {
             tcp_slave.reg_sizes.tab_input_bits_size = item->valueint;
         }
 
         item = cJSON_GetObjectItem(reg_sizes, "tab_registers_size");
-        if (item) {
+        if (item)
+        {
             tcp_slave.reg_sizes.tab_registers_size = item->valueint;
         }
 
         item = cJSON_GetObjectItem(reg_sizes, "tab_input_registers_size");
-        if (item) {
+        if (item)
+        {
             tcp_slave.reg_sizes.tab_input_registers_size = item->valueint;
         }
     }
@@ -432,39 +471,48 @@ esp_err_t post_tcp_slave_config_handler(httpd_req_t *req) {
 
     // 解析映射配置
     cJSON *maps = cJSON_GetObjectItem(root, "maps");
-    if (maps && cJSON_IsArray(maps)) {
+    if (maps && cJSON_IsArray(maps))
+    {
         int map_count = cJSON_GetArraySize(maps);
-        if (map_count > MAX_MAPS) {
-            map_count = MAX_MAPS;  // 限制最大映射数量
+        if (map_count > MAX_MAPS)
+        {
+            map_count = MAX_MAPS; // 限制最大映射数量
         }
 
         // 遍历并设置映射
-        for (int i = 0; i < map_count; i++) {
+        for (int i = 0; i < map_count; i++)
+        {
             cJSON *map = cJSON_GetArrayItem(maps, i);
-            if (!map) continue;
+            if (!map)
+                continue;
 
             item = cJSON_GetObjectItem(map, "type");
-            if (item) {
+            if (item)
+            {
                 tcp_slave.maps[i].type = item->valueint;
             }
 
             item = cJSON_GetObjectItem(map, "group_index");
-            if (item) {
+            if (item)
+            {
                 tcp_slave.maps[i].group_index = item->valueint;
             }
 
             item = cJSON_GetObjectItem(map, "master_start_addr");
-            if (item) {
+            if (item)
+            {
                 tcp_slave.maps[i].master_start_addr = item->valueint;
             }
 
             item = cJSON_GetObjectItem(map, "slave_start_addr");
-            if (item) {
+            if (item)
+            {
                 tcp_slave.maps[i].slave_start_addr = item->valueint;
             }
 
             item = cJSON_GetObjectItem(map, "count");
-            if (item) {
+            if (item)
+            {
                 tcp_slave.maps[i].count = item->valueint;
             }
         }
@@ -472,7 +520,8 @@ esp_err_t post_tcp_slave_config_handler(httpd_req_t *req) {
 
     // 保存到 NVS
     esp_err_t save_err = save_tcp_slave_config_to_nvs(&tcp_slave);
-    if (save_err != ESP_OK) {
+    if (save_err != ESP_OK)
+    {
         ESP_LOGE(TAG, "NVS存储失败");
     }
 

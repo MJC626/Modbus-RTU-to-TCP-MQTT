@@ -10,24 +10,24 @@ SemaphoreHandle_t modbus_mutex = NULL;
 
 // 默认 tcp_slave 配置
 tcp_slave_t tcp_slave = {
-     .enabled = false,        // 默认不启用
+     .enabled = true,        // 默认不启用
     .server_port = 502,       // Modbus TCP 默认端口
-    .slave_address = 1,       // 默认从站地址
+    .slave_address = 123,       // 默认从站地址
     
     // 寄存器映射配置
     .maps = {
-        {MAP_COIL_TO_COIL, 0, 0, 0, 10},
-        {MAP_DISC_TO_DISC, 1, 0, 10, 10},
-        {MAP_HOLD_TO_HOLD, 2, 0, 0, 10},
-        {MAP_INPUT_TO_INPUT, 3, 0, 10, 10},
+        {MAP_HOLD_TO_HOLD, 0, 0, 0, 10},
+        {MAP_INPUT_TO_INPUT, 1, 0, 10, 10},
+        {MAP_COIL_TO_COIL, 2, 0, 0, 10},
+        {MAP_DISC_TO_DISC, 3, 0, 10, 10},
     },
     
     // 寄存器空间尺寸配置
     .reg_sizes = {
-        .tab_bits_size = 20,
-        .tab_input_bits_size = 20,
-        .tab_registers_size = 20,
-        .tab_input_registers_size = 20,
+        .tab_bits_size = 50,
+        .tab_input_bits_size = 50,
+        .tab_registers_size = 50,
+        .tab_input_registers_size = 50,
     }
 };
 

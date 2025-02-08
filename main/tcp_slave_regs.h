@@ -61,7 +61,7 @@ typedef struct {
 } tcp_slave_t;
 
 //声明默认 tcp_slave 配置
-extern tcp_slave_t tcp_slave;  // 在配置头文件中声明
+extern tcp_slave_t tcp_slave; 
 
 
 esp_err_t save_tcp_slave_config_to_nvs(tcp_slave_t *config);

@@ -1,0 +1,946 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>系统配置界面</title>
+    <style>
+        /* 基础样式 */
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+
+        /* 容器样式 */
+        .container {
+            background-color: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+            position: relative;
+        }
+
+        /* 表单组件样式 */
+        .form-group {
+            margin-bottom: 15px;
+        }
+
+        .group-container {
+            border: 1px solid #ddd;
+            padding: 15px;
+            margin-bottom: 15px;
+            border-radius: 4px;
+            background-color: #f9f9f9;
+        }
+
+        label {
+            display: inline-block;
+            width: 120px;
+            margin-right: 10px;
+        }
+
+        /* 输入框样式 */
+        input[type="number"],
+        input[type="text"],
+        input[type="password"],
+        select {
+            width: 150px;
+            padding: 5px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+        }
+
+        /* 按钮样式 */
+        button {
+            background-color: #4CAF50;
+            color: white;
+            padding: 10px 20px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+
+        button:hover {
+            background-color: #45a049;
+        }
+
+        /* 系统配置按钮位置 */
+        .system-config {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+        }
+
+        /* 模态框样式 */
+        .modal {
+            display: none;
+            position: fixed;
+            z-index: 1;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.4);
+        }
+
+        .modal-content {
+            background-color: #fefefe;
+            margin: 15% auto;
+            padding: 20px;
+            border: 1px solid #888;
+            width: 80%;
+            max-width: 500px;
+            border-radius: 8px;
+        }
+
+        .close {
+            color: #aaa;
+            float: right;
+            font-size: 28px;
+            font-weight: bold;
+            cursor: pointer;
+        }
+
+        .close:hover {
+            color: black;
+        }
+
+        /* 组件头部样式 */
+        .group-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 10px;
+        }
+
+        .group-title {
+            font-weight: bold;
+        }
+
+        /* 状态提示样式 */
+        .success {
+            color: green;
+            margin-top: 10px;
+        }
+
+        .error {
+            color: red;
+            margin-top: 10px;
+        }
+
+        /* 标签页样式 */
+        .tab-header {
+            margin-bottom: 20px;
+        }
+
+        .tab-button {
+            background-color: #f1f1f1;
+            color: black;
+            padding: 10px 20px;
+            border: none;
+            border-radius: 4px;
+            margin-right: 10px;
+            cursor: pointer;
+        }
+
+        .tab-button.active {
+            background-color: #4CAF50;
+            color: white;
+        }
+
+        /* MQTT相关样式 */
+        #mqtt_connection_status {
+            color: green;
+            margin-top: 10px;
+            padding: 5px;
+            border-radius: 4px;
+        }
+
+        .mqtt-group-checkbox label {
+            display: inline-block;
+            width: auto;
+            margin-right: 20px;
+        }
+
+        .mqtt-group-checkbox input[type="checkbox"] {
+            margin-right: 5px;
+        }
+
+        #mqtt_groups_container {
+            margin-left: 10px;
+            margin-top: 5px;
+        }
+
+        .mqtt-groups-title {
+            margin-bottom: 10px;
+            font-weight: normal;
+        }
+
+        /* 按钮组样式 */
+        .button-group {
+            margin: 20px 0;
+        }
+
+        .button-group button:hover {
+            opacity: 0.9;
+        }
+
+        .mqtt-group-checkbox select {
+            width: 120px;
+            margin-left: 10px;
+        }
+    </style>
+</head>
+
+<body>
+    <!-- 主容器 -->
+    <div class="container">
+        <h1>Modbus配置界面</h1>
+
+        <!-- 标签页切换按钮 -->
+        <div class="tab-header">
+            <button onclick="showTab('modbus')" id="modbus-tab" class="tab-button active">Modbus配置</button>
+            <button onclick="showTab('mqtt')" id="mqtt-tab" class="tab-button">MQTT配置</button>
+            <button onclick="showTab('tcpslave')" id="tcpslave-tab" class="tab-button">TCP从站配置</button>
+        </div>
+
+        <!-- 系统配置按钮 -->
+        <div class="system-config">
+            <button onclick="openWifiModal()">系统配置</button>
+        </div>
+
+        <!-- Modbus配置区域 -->
+        <div id="modbus-config" class="tab-content">
+            <!-- 基本配置选项 -->
+            <div class="form-group">
+                <label for="poll_interval">轮询间隔(ms):</label>
+                <input type="number" id="poll_interval" min="100" step="100">
+            </div>
+            
+            <!-- 轮询组配置容器 -->
+            <div class="group-container">
+                <div class="group-header">
+                    <span class="group-title">轮询组配置</span>
+                    <button onclick="ModbusManager.addGroup()" 
+                            style="background-color: #4CAF50; color: white; padding: 5px 10px; border: none; border-radius: 4px; cursor: pointer;">
+                        添加轮询组
+                    </button>
+                </div>
+                <div id="groups_container">
+                    <!-- 动态生成的轮询组配置项 -->
+                </div>
+            </div>
+
+            <!-- 按钮和状态显示 -->
+            <div class="button-group" style="display: flex; gap: 10px;">
+                <button onclick="ModbusManager.saveConfig()">保存配置</button>
+                <button onclick="ModbusManager.fetchConfig()" style="background-color: #2196F3;">刷新配置</button>
+            </div>
+            <div id="save_status"></div>
+        </div>
+
+        <!-- MQTT配置区域 -->
+        <div id="mqtt-config" class="tab-content" style="display:none;">
+            <!-- MQTT基本配置选项 -->
+            <div class="form-group">
+                <label>
+                    <input type="checkbox" id="mqtt_enabled">
+                    启用MQTT
+                </label>
+            </div>
+            <div class="form-group">
+                <label for="mqtt_broker">MQTT服务器:</label>
+                <input type="text" id="mqtt_broker" placeholder="mqtt://example.com">
+            </div>
+            <!-- MQTT认证信息 -->
+            <div class="form-group">
+                <label for="mqtt_username">用户名:</label>
+                <input type="text" id="mqtt_username">
+            </div>
+            <div class="form-group">
+                <label for="mqtt_password">密码:</label>
+                <input type="password" id="mqtt_password">
+            </div>
+            <!-- MQTT主题配置 -->
+            <div class="form-group">
+                <label for="mqtt_topic">主题:</label>
+                <input type="text" id="mqtt_topic" placeholder="modbus/data">
+            </div>
+            <!-- MQTT轮询组选择 -->
+            <div class="form-group">
+                <label>选择发布的轮询组:</label>
+                <div id="mqtt_groups_container">
+                    <!-- 动态生成的复选框容器 -->
+                </div>
+            </div>
+            <!-- MQTT发布间隔配置 -->
+            <div class="form-group">
+                <label for="mqtt_interval">发布间隔(ms):</label>
+                <input type="number" id="mqtt_interval" min="100" step="100" value="1000">
+            </div>
+            <!-- MQTT保存按钮和状态显示 -->
+            <div class="button-group" style="display: flex; gap: 10px;">
+                <button onclick="MqttManager.saveConfig()">保存MQTT配置</button>
+                <button onclick="MqttManager.fetchConfig()" style="background-color: #2196F3;">刷新MQTT配置</button>
+            </div>
+            <div id="mqtt_status"></div>
+            <div id="mqtt_connection_status"></div>
+        </div>
+
+        <!-- TCPSLAVE配置区域 -->
+        <div id="tcpslave-config" class="tab-content" style="display:none;">
+            <div class="form-group">
+                <label>
+                    <input type="checkbox" id="tcp_slave_enabled">
+                    启用TCP从站
+                </label>
+            </div>
+            <div class="form-group">
+                <label for="tcp_server_port">服务器端口:</label>
+                <input type="number" id="tcp_server_port" min="1" max="65535" value="502">
+            </div>
+            <div class="form-group">
+                <label for="tcp_slave_address">从站地址:</label>
+                <input type="number" id="tcp_slave_address" min="1" max="247" value="1">
+            </div>
+
+            <!-- 寄存器配置 -->
+            <div class="group-container">
+                <div class="group-header">
+                    <span class="group-title">寄存器配置</span>
+                </div>
+                <div class="form-group">
+                    <label for="tab_bits_size">线圈数量:</label>
+                    <input type="number" id="tab_bits_size" min="0" max="65535">
+                </div>
+                <div class="form-group">
+                    <label for="tab_input_bits_size">离散输入数量:</label>
+                    <input type="number" id="tab_input_bits_size" min="0" max="65535">
+                </div>
+                <div class="form-group">
+                    <label for="tab_registers_size">保持寄存器数量:</label>
+                    <input type="number" id="tab_registers_size" min="0" max="65535">
+                </div>
+                <div class="form-group">
+                    <label for="tab_input_registers_size">输入寄存器数量:</label>
+                    <input type="number" id="tab_input_registers_size" min="0" max="65535">
+                </div>
+            </div>
+
+            <!-- 映射配置 -->
+            <div class="group-container">
+                <div class="group-header">
+                    <span class="group-title">映射配置</span>
+                    <button onclick="TcpSlaveManager.addMapGroup()"
+                        style="background-color: #4CAF50; color: white; padding: 5px 10px; border: none; border-radius: 4px; cursor: pointer;">
+                        添加映射组
+                    </button>
+                </div>
+                <div id="maps_container">
+                    <!-- 动态生成的映射配置项 -->
+                </div>
+            </div>
+
+            <!-- TCP从站配置按钮 -->
+            <div class="button-group" style="display: flex; gap: 10px;">
+                <button onclick="TcpSlaveManager.saveConfig()">保存TCP从站配置</button>
+                <button onclick="TcpSlaveManager.fetchConfig()" style="background-color: #2196F3;">刷新TCP从站配置</button>
+            </div>
+            <div id="tcp_slave_status"></div>
+        </div>
+
+        <!-- WiFi配置模态框 -->
+        <div id="wifiModal" class="modal">
+            <div class="modal-content">
+                <span class="close" onclick="closeWifiModal()">&times;</span>
+                <h2>WiFi配置</h2>
+                <!-- WiFi配置表单 -->
+                <div class="form-group">
+                    <label for="wifi_ssid">SSID:</label>
+                    <input type="text" id="wifi_ssid" placeholder="输入WiFi名称">
+                </div>
+                <div class="form-group">
+                    <label for="wifi_password">密码:</label>
+                    <input type="password" id="wifi_password" placeholder="输入WiFi密码">
+                </div>
+                <!-- WiFi配置保存按钮和状态显示 -->
+                <button onclick="saveWifiConfig()">保存WiFi配置</button>
+                <div id="wifi_status"></div>
+            </div>
+        </div>
+    </div>
+    <script>
+        // 常量定义
+        const CONFIG = {
+            MAX_REGISTERS_PER_GROUP: 100,
+            MAX_MAP_GROUPS: 10,
+            MAX_MODBUS_GROUPS: 10,
+            API_ENDPOINTS: {
+                WIFI: '/api/wifi/config',
+                MQTT: '/api/mqtt/config',
+                MODBUS: '/api/config',
+                TCP_SLAVE: '/api/tcp_slave/config'
+            },
+            UI_ELEMENTS: {
+                TABS: ['modbus', 'mqtt', 'tcpslave'],
+                STATUS_TIMEOUT: 3000
+            }
+        };
+
+        // 全局状态管理
+        const AppState = {
+            currentConfig: {
+                poll_interval: 1000,
+                groups: []
+            }
+        };
+
+        // UI工具函数
+        const UIUtils = {
+            showStatus: (elementId, message, type = 'success', timeout = CONFIG.UI_ELEMENTS.STATUS_TIMEOUT) => {
+                const statusDiv = document.getElementById(elementId);
+                statusDiv.innerHTML = `<div class="${type}">${message}</div>`;
+                if (timeout) {
+                    setTimeout(() => statusDiv.innerHTML = '', timeout);
+                }
+            },
+
+            validateInput: (value, min, max, message) => {
+                const numValue = parseInt(value);
+                if (numValue < min || numValue > max) {
+                    alert(message);
+                    return false;
+                }
+                return true;
+            }
+        };
+
+        // API请求工具
+        const ApiService = {
+            async request(endpoint, method = 'GET', data = null) {
+                try {
+                    const options = {
+                        method,
+                        headers: {
+                            'Content-Type': 'application/json'
+                        }
+                    };
+                    if (data) {
+                        options.body = JSON.stringify(data);
+                    }
+                    const response = await fetch(endpoint, options);
+                    return await response.json();
+                } catch (error) {
+                    console.error(`API请求失败: ${endpoint}`, error);
+                    throw error;
+                }
+            }
+        };
+
+        // WiFi模态框管理
+        const WifiModal = {
+            open() {
+                document.getElementById('wifiModal').style.display = 'block';
+            },
+
+            close() {
+                document.getElementById('wifiModal').style.display = 'none';
+            },
+
+            async saveConfig() {
+                const ssid = document.getElementById('wifi_ssid').value;
+                const password = document.getElementById('wifi_password').value;
+
+                if (!ssid || !password) {
+                    alert('请输入SSID和密码');
+                    return;
+                }
+
+                try {
+                    const result = await ApiService.request(CONFIG.API_ENDPOINTS.WIFI, 'POST', {
+                        ssid,
+                        password
+                    });
+
+                    if (result.status === 'ok') {
+                        UIUtils.showStatus('wifi_status', result.message);
+                        setTimeout(() => {
+                            this.close();
+                            document.getElementById('wifi_status').innerHTML = '';
+                        }, CONFIG.UI_ELEMENTS.STATUS_TIMEOUT);
+                    } else {
+                        UIUtils.showStatus('wifi_status', '配置保存失败', 'error');
+                    }
+                } catch (error) {
+                    console.error('保存WiFi配置失败:', error);
+                    alert('保存WiFi配置失败');
+                }
+            }
+        };
+
+        // MQTT配置管理
+        const MqttManager = {
+            async fetchConfig() {
+                try {
+                    UIUtils.showStatus('mqtt_status', '正在获取MQTT配置...', 'info', 0);
+                    const config = await ApiService.request(CONFIG.API_ENDPOINTS.MQTT);
+                    this.updateUI(config);
+                    UIUtils.showStatus('mqtt_status', 'MQTT配置已刷新');
+                } catch (error) {
+                    UIUtils.showStatus('mqtt_status', '获取MQTT配置失败', 'error');
+                }
+            },
+
+            updateUI(config) {
+                document.getElementById('mqtt_enabled').checked = config.enabled;
+                document.getElementById('mqtt_broker').value = config.broker_url;
+                document.getElementById('mqtt_username').value = config.username;
+                document.getElementById('mqtt_topic').value = config.topic;
+                document.getElementById('mqtt_interval').value = config.publish_interval;
+
+                const selectedGroups = Array.isArray(config.group_ids) ? config.group_ids : [];
+                const parseMethods = Array.isArray(config.parse_methods) ? config.parse_methods : [];
+
+                const groupsContainer = document.getElementById('mqtt_groups_container');
+                groupsContainer.innerHTML = '<div class="mqtt-groups-title">轮询组：</div>';
+
+                for (let i = 0; i < AppState.currentConfig.groups.length; i++) {
+                    const checkboxDiv = document.createElement('div');
+                    checkboxDiv.className = 'mqtt-group-checkbox';
+                    const isChecked = selectedGroups.includes(i);
+
+                    checkboxDiv.innerHTML = `
+                <label>
+                    <input type="checkbox" 
+                           id="mqtt_group_${i}" 
+                           value="${i}"
+                           ${isChecked ? 'checked' : ''}>
+                    组 ${i + 1}
+                </label>
+                <select id="mqtt_parse_${i}" style="margin-left: 10px;">
+                    <option value="0" ${parseMethods[i] === 0 ? 'selected' : ''}>有符号16位整数</option>
+                    <option value="1" ${parseMethods[i] === 1 ? 'selected' : ''}>无符号16位整数</option>
+                    <option value="2" ${parseMethods[i] === 2 ? 'selected' : ''}>32位整数 - ABCD</option>
+                    <option value="3" ${parseMethods[i] === 3 ? 'selected' : ''}>32位整数 - CDAB</option>
+                    <option value="4" ${parseMethods[i] === 4 ? 'selected' : ''}>32位整数 - BADC</option>
+                    <option value="5" ${parseMethods[i] === 5 ? 'selected' : ''}>32位整数 - DCBA</option>
+                    <option value="6" ${parseMethods[i] === 6 ? 'selected' : ''}>32位浮点 - ABCD</option>
+                    <option value="7" ${parseMethods[i] === 7 ? 'selected' : ''}>32位浮点 - CDAB</option>
+                    <option value="8" ${parseMethods[i] === 8 ? 'selected' : ''}>32位浮点 - BADC</option>
+                    <option value="9" ${parseMethods[i] === 9 ? 'selected' : ''}>32位浮点 - DCBA</option>
+                </select>
+            `;
+                    groupsContainer.appendChild(checkboxDiv);
+                }
+
+                this.updateMqttConnectionStatus(config.connected);
+            },
+
+            updateMqttConnectionStatus(connected) {
+                const statusDiv = document.getElementById('mqtt_connection_status');
+                if (connected) {
+                    statusDiv.innerHTML = '状态: 已连接';
+                    statusDiv.className = 'connected';
+                } else {
+                    statusDiv.innerHTML = '状态: 未连接';
+                    statusDiv.className = 'disconnected';
+                }
+            },
+
+            async saveConfig() {
+                const selectedGroups = [];
+                const parseMethods = [];
+
+                document.querySelectorAll('#mqtt_groups_container input[type="checkbox"]').forEach((checkbox, index) => {
+                    if (checkbox.checked) {
+                        selectedGroups.push(parseInt(checkbox.value));
+                        parseMethods.push(parseInt(document.getElementById(`mqtt_parse_${checkbox.value}`).value));
+                    }
+                });
+
+                const config = {
+                    enabled: document.getElementById('mqtt_enabled').checked,
+                    broker_url: document.getElementById('mqtt_broker').value,
+                    username: document.getElementById('mqtt_username').value,
+                    password: document.getElementById('mqtt_password').value,
+                    topic: document.getElementById('mqtt_topic').value,
+                    group_ids: selectedGroups,
+                    parse_methods: parseMethods,
+                    publish_interval: parseInt(document.getElementById('mqtt_interval').value)
+                };
+
+                try {
+                    const response = await ApiService.request(CONFIG.API_ENDPOINTS.MQTT, 'POST', config);
+                    if (response.status === 'ok') {
+                        UIUtils.showStatus('mqtt_status', 'MQTT配置已保存');
+                        await this.fetchConfig();
+                    }
+                } catch (error) {
+                    console.error('保存MQTT配置失败:', error);
+                    alert('保存MQTT配置失败');
+                }
+            }
+        };
+
+
+        // Modbus配置管理
+        const ModbusManager = {
+            async fetchConfig() {
+                try {
+                    UIUtils.showStatus('save_status', '正在获取配置...', 'info', 0);
+                    AppState.currentConfig = await ApiService.request(CONFIG.API_ENDPOINTS.MODBUS);
+                    this.updateUI();
+                    UIUtils.showStatus('save_status', '配置已刷新');
+                } catch (error) {
+                    UIUtils.showStatus('save_status', '获取配置失败', 'error');
+                }
+            },
+
+            updateUI() {
+                document.getElementById('poll_interval').value = AppState.currentConfig.poll_interval;
+                this.updateGroupsUI();
+            },
+
+            updateGroupsUI() {
+                const groupsContainer = document.getElementById('groups_container');
+                groupsContainer.innerHTML = '';
+
+                AppState.currentConfig.groups.forEach((group, i) => {
+                    this.addGroup(group);
+                });
+            },
+
+            addGroup(group = null) {
+                if (AppState.currentConfig.groups.length >= CONFIG.MAX_MODBUS_GROUPS) {
+                    alert(`最多只能添加${CONFIG.MAX_MODBUS_GROUPS}个轮询组`);
+                    return;
+                }
+
+                const groupsContainer = document.getElementById('groups_container');
+                const currentGroups = groupsContainer.children.length;
+
+                if (!group) {
+                    group = {
+                        enabled: false,
+                        uart_port: 1,
+                        slave_addr: '',
+                        function_code: '01',
+                        start_addr: '',
+                        reg_count: ''
+                    };
+                    AppState.currentConfig.groups.push(group);
+                }
+
+                const groupHtml = `
+                <div class="group-container modbus-group" id="modbus_group_${currentGroups}">
+                    <div class="group-header">
+                        <span class="group-title">轮询组 ${currentGroups + 1}</span>
+                        <div style="display: flex; gap: 10px;">
+                            <label>
+                                <input type="checkbox" id="group_${currentGroups}_enabled" 
+                                       ${group.enabled ? 'checked' : ''}>
+                                启用
+                            </label>
+                            <button onclick="ModbusManager.removeGroup(${currentGroups})" 
+                                    style="background-color: #f44336; color: white; padding: 5px 10px; border: none; border-radius: 4px; cursor: pointer;">
+                                删除
+                            </button>
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label>串口选择:</label>
+                        <select id="group_${currentGroups}_uart_port">
+                            <option value="1" ${group.uart_port === 1 ? 'selected' : ''}>UART1</option>
+                            <option value="2" ${group.uart_port === 2 ? 'selected' : ''}>UART2</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>从站地址:</label>
+                        <input type="number" id="group_${currentGroups}_slave_addr" 
+                               value="${group.slave_addr}" min="1" max="247">
+                    </div>
+                    <div class="form-group">
+                        <label>功能码:</label>
+                        <select id="group_${currentGroups}_function_code">
+                            <option value="01" ${group.function_code === 1 ? 'selected' : ''}>01-读线圈状态</option>
+                            <option value="02" ${group.function_code === 2 ? 'selected' : ''}>02-读离散输入状态</option>
+                            <option value="03" ${group.function_code === 3 ? 'selected' : ''}>03-读保持寄存器</option>
+                            <option value="04" ${group.function_code === 4 ? 'selected' : ''}>04-读输入寄存器</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>起始地址:</label>
+                        <input type="number" id="group_${currentGroups}_start_addr" 
+                               value="${group.start_addr}" min="0">
+                    </div>
+                    <div class="form-group">
+                        <label>寄存器数量:</label>
+                        <input type="number" id="group_${currentGroups}_reg_count" 
+                               value="${group.reg_count}" min="1" max="${CONFIG.MAX_REGISTERS_PER_GROUP}"
+                               onchange="ModbusManager.validateRegisterCount(${currentGroups})">
+                    </div>
+                </div>
+            `;
+                groupsContainer.insertAdjacentHTML('beforeend', groupHtml);
+            },
+
+            removeGroup(index) {
+                const container = document.getElementById('groups_container');
+                const groupToRemove = document.getElementById(`modbus_group_${index}`);
+                if (groupToRemove) {
+                    AppState.currentConfig.groups.splice(index, 1);
+                    groupToRemove.remove();
+                    this.updateGroupNumbers();
+                }
+            },
+
+            updateGroupNumbers() {
+                const container = document.getElementById('groups_container');
+                const groups = container.getElementsByClassName('modbus-group');
+                Array.from(groups).forEach((group, index) => {
+                    group.querySelector('.group-title').textContent = `轮询组 ${index + 1}`;
+                    group.id = `modbus_group_${index}`;
+                    group.querySelector('button').setAttribute('onclick', `ModbusManager.removeGroup(${index})`);
+
+                    const inputs = group.querySelectorAll('input, select');
+                    inputs.forEach(input => {
+                        const oldId = input.id;
+                        const newId = oldId.replace(/\d+/, index);
+                        input.id = newId;
+                    });
+                });
+            },
+
+            validateRegisterCount(groupIndex) {
+                const regCount = parseInt(document.getElementById(`group_${groupIndex}_reg_count`).value);
+                if (regCount > CONFIG.MAX_REGISTERS_PER_GROUP) {
+                    alert(`每个轮询组的寄存器数量不能超过${CONFIG.MAX_REGISTERS_PER_GROUP}`);
+                    document.getElementById(`group_${groupIndex}_reg_count`).value = CONFIG.MAX_REGISTERS_PER_GROUP;
+                }
+            },
+
+            async saveConfig() {
+                const newConfig = {
+                    poll_interval: parseInt(document.getElementById('poll_interval').value),
+                    groups: []
+                };
+
+                const groups = document.getElementsByClassName('modbus-group');
+                Array.from(groups).forEach((group, i) => {
+                    newConfig.groups.push({
+                        enabled: document.getElementById(`group_${i}_enabled`).checked,
+                        uart_port: parseInt(document.getElementById(`group_${i}_uart_port`).value) || '',
+                        slave_addr: parseInt(document.getElementById(`group_${i}_slave_addr`).value) || '',
+                        function_code: parseInt(document.getElementById(`group_${i}_function_code`).value),
+                        start_addr: parseInt(document.getElementById(`group_${i}_start_addr`).value) || '',
+                        reg_count: parseInt(document.getElementById(`group_${i}_reg_count`).value) || ''
+                    });
+                });
+
+                try {
+                    const response = await ApiService.request(CONFIG.API_ENDPOINTS.MODBUS, 'POST', newConfig);
+                    if (response.status === 'ok') {
+                        UIUtils.showStatus('save_status', '配置已保存');
+                        AppState.currentConfig = newConfig;
+                    } else {
+                        alert('配置保存失败');
+                    }
+                } catch (error) {
+                    console.error('保存配置失败:', error);
+                    alert('保存配置失败');
+                }
+            }
+        };
+
+        // TCP从站配置管理
+        const TcpSlaveManager = {
+            async fetchConfig() {
+                try {
+                    UIUtils.showStatus('tcp_slave_status', '正在获取TCP从站配置...', 'info', 0);
+                    const config = await ApiService.request(CONFIG.API_ENDPOINTS.TCP_SLAVE);
+                    this.updateUI(config);
+                    UIUtils.showStatus('tcp_slave_status', 'TCP从站配置已刷新');
+                } catch (error) {
+                    UIUtils.showStatus('tcp_slave_status', '获取TCP从站配置失败', 'error');
+                }
+            },
+
+            updateUI(config) {
+                document.getElementById('tcp_slave_enabled').checked = config.enabled;
+                document.getElementById('tcp_server_port').value = config.server_port;
+                document.getElementById('tcp_slave_address').value = config.slave_address;
+
+                // 更新寄存器配置
+                document.getElementById('tab_bits_size').value = config.reg_sizes.tab_bits_size;
+                document.getElementById('tab_input_bits_size').value = config.reg_sizes.tab_input_bits_size;
+                document.getElementById('tab_registers_size').value = config.reg_sizes.tab_registers_size;
+                document.getElementById('tab_input_registers_size').value = config.reg_sizes.tab_input_registers_size;
+
+                // 清空并重新创建映射配置
+                const container = document.getElementById('maps_container');
+                container.innerHTML = '';
+
+                if (Array.isArray(config.maps)) {
+                    config.maps.forEach((map, index) => {
+                        if (map.count > 0) {
+                            this.addMapGroup();
+                            document.getElementById(`map_${index}_type`).value = map.type;
+                            document.getElementById(`map_${index}_group_index`).value = map.group_index;
+                            document.getElementById(`map_${index}_master_start_addr`).value = map.master_start_addr;
+                            document.getElementById(`map_${index}_slave_start_addr`).value = map.slave_start_addr;
+                            document.getElementById(`map_${index}_count`).value = map.count;
+                        }
+                    });
+                }
+            },
+
+            addMapGroup() {
+                const container = document.getElementById('maps_container');
+                const currentGroups = container.children.length;
+
+                if (currentGroups >= CONFIG.MAX_MAP_GROUPS) {
+                    alert(`最多只能添加${CONFIG.MAX_MAP_GROUPS}个映射组`);
+                    return;
+                }
+
+                const newMapHtml = `
+            <div class="group-container map-group" id="map_group_${currentGroups}">
+                <div class="group-header" style="display: flex; justify-content: space-between; align-items: center;">
+                    <span class="group-title">映射 ${currentGroups + 1}</span>
+                    <button onclick="TcpSlaveManager.removeMapGroup(${currentGroups})" 
+                            style="background-color: #f44336; color: white; padding: 5px 10px; border: none; border-radius: 4px; cursor: pointer;">
+                        删除
+                    </button>
+                </div>
+                <div class="form-group">
+                    <label>寄存器类型:</label>
+                    <select id="map_${currentGroups}_type">
+                        <option value="0">线圈</option>
+                        <option value="1">离散输入</option>
+                        <option value="2">保持寄存器</option>
+                        <option value="3">输入寄存器</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>主站组索引:</label>
+                    <input type="number" id="map_${currentGroups}_group_index" min="0" value="0">
+                </div>
+                <div class="form-group">
+                    <label>主站起始地址:</label>
+                    <input type="number" id="map_${currentGroups}_master_start_addr" min="0" value="0">
+                </div>
+                <div class="form-group">
+                    <label>从站起始地址:</label>
+                    <input type="number" id="map_${currentGroups}_slave_start_addr" min="0" value="0">
+                </div>
+                <div class="form-group">
+                    <label>寄存器数量:</label>
+                    <input type="number" id="map_${currentGroups}_count" min="1" value="1">
+                </div>
+            </div>
+        `;
+                container.insertAdjacentHTML('beforeend', newMapHtml);
+            },
+
+            removeMapGroup(index) {
+                const container = document.getElementById('maps_container');
+                const groupToRemove = document.getElementById(`map_group_${index}`);
+                if (groupToRemove) {
+                    groupToRemove.remove();
+                    this.updateMapGroupNumbers();
+                }
+            },
+
+            updateMapGroupNumbers() {
+                const container = document.getElementById('maps_container');
+                const groups = container.getElementsByClassName('map-group');
+                Array.from(groups).forEach((group, index) => {
+                    group.querySelector('.group-title').textContent = `映射 ${index + 1}`;
+                    group.id = `map_group_${index}`;
+                    group.querySelector('button').setAttribute('onclick', `TcpSlaveManager.removeMapGroup(${index})`);
+
+                    const inputs = group.querySelectorAll('input, select');
+                    inputs.forEach(input => {
+                        const oldId = input.id;
+                        const newId = oldId.replace(/\d+/, index);
+                        input.id = newId;
+                    });
+                });
+            },
+
+            async saveConfig() {
+                const maps = [];
+                const mapGroups = document.getElementsByClassName('map-group');
+
+                Array.from(mapGroups).forEach((group, index) => {
+                    maps.push({
+                        type: parseInt(document.getElementById(`map_${index}_type`).value),
+                        group_index: parseInt(document.getElementById(`map_${index}_group_index`).value),
+                        master_start_addr: parseInt(document.getElementById(`map_${index}_master_start_addr`).value),
+                        slave_start_addr: parseInt(document.getElementById(`map_${index}_slave_start_addr`).value),
+                        count: parseInt(document.getElementById(`map_${index}_count`).value)
+                    });
+                });
+
+                const config = {
+                    enabled: document.getElementById('tcp_slave_enabled').checked,
+                    server_port: parseInt(document.getElementById('tcp_server_port').value),
+                    slave_address: parseInt(document.getElementById('tcp_slave_address').value),
+                    reg_sizes: {
+                        tab_bits_size: parseInt(document.getElementById('tab_bits_size').value),
+                        tab_input_bits_size: parseInt(document.getElementById('tab_input_bits_size').value),
+                        tab_registers_size: parseInt(document.getElementById('tab_registers_size').value),
+                        tab_input_registers_size: parseInt(document.getElementById('tab_input_registers_size').value)
+                    },
+                    maps: maps
+                };
+
+                try {
+                    const response = await ApiService.request(CONFIG.API_ENDPOINTS.TCP_SLAVE, 'POST', config);
+                    if (response.status === 'ok') {
+                        UIUtils.showStatus('tcp_slave_status', 'TCP从站配置已保存');
+                    } 
+                } catch (error) {
+                    console.error('保存TCP从站配置失败:', error);
+                    alert('保存TCP从站配置失败');
+                }
+            }
+        };
+
+        // 页面初始化
+        function initializePage() {
+            ModbusManager.fetchConfig();
+
+            // 事件监听器设置
+            window.onclick = (event) => {
+                if (event.target === document.getElementById('wifiModal')) {
+                    WifiModal.close();
+                }
+            };
+        }
+
+        // 页面加载完成后初始化
+        window.onload = initializePage;
+
+        // 导出全局函数
+        window.openWifiModal = WifiModal.open;
+        window.closeWifiModal = WifiModal.close;
+        window.saveWifiConfig = () => WifiModal.saveConfig();
+        window.showTab = (tabName) => {
+            CONFIG.UI_ELEMENTS.TABS.forEach(tab => {
+                document.getElementById(`${tab}-tab`).classList.remove('active');
+                document.getElementById(`${tab}-config`).style.display = 'none';
+            });
+            document.getElementById(`${tabName}-tab`).classList.add('active');
+            document.getElementById(`${tabName}-config`).style.display = 'block';
+        };
+    </script>
+
+    </script>
+</body>
+
+</html>

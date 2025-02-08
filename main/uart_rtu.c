@@ -154,14 +154,14 @@ int uart_init(void) {
     
     // UART1 配置
     ESP_ERROR_CHECK(uart_param_config(UART_NUM_1, &uart_config));
-    ESP_ERROR_CHECK(uart_set_pin(UART_NUM_1, 17, 18, UART_PIN_NO_CHANGE, UART_PIN_NO_CHANGE));
+    ESP_ERROR_CHECK(uart_set_pin(UART_NUM_1, 6, 7, UART_PIN_NO_CHANGE, UART_PIN_NO_CHANGE));
     ESP_ERROR_CHECK(uart_driver_install(UART_NUM_1, BUF_SIZE * 2, BUF_SIZE * 2, 20, &uart1_queue, ESP_INTR_FLAG_IRAM));
     uart_set_rx_timeout(UART_NUM_1, 3); // 设置超时为3个字符时间(硬件超时)
     uart_set_rx_full_threshold(UART_NUM_1, 120);
 
     // UART2 配置
     ESP_ERROR_CHECK(uart_param_config(UART_NUM_2, &uart_config));
-    ESP_ERROR_CHECK(uart_set_pin(UART_NUM_2, 15, 16, UART_PIN_NO_CHANGE, UART_PIN_NO_CHANGE));
+    ESP_ERROR_CHECK(uart_set_pin(UART_NUM_2, 8, 9, UART_PIN_NO_CHANGE, UART_PIN_NO_CHANGE));
     ESP_ERROR_CHECK(uart_driver_install(UART_NUM_2, BUF_SIZE * 2, BUF_SIZE * 2, 20, &uart2_queue, ESP_INTR_FLAG_IRAM));
     uart_set_rx_timeout(UART_NUM_2, 3); // 设置超时为3个字符时间(硬件超时)
     uart_set_rx_full_threshold(UART_NUM_2, 120);
