@@ -12,7 +12,6 @@
 
 #define MAX_SSID_LEN 32
 #define MAX_PASSWORD_LEN 64
-#define WIFI_STORAGE_NAMESPACE "wifi_config"
 
 static struct {
     char ssid[MAX_SSID_LEN];
@@ -115,7 +114,7 @@ esp_err_t wifi_save_config(const char* ssid, const char* password)
     nvs_handle_t nvs_handle;
     esp_err_t err;
 
-    err = nvs_open(WIFI_STORAGE_NAMESPACE, NVS_READWRITE, &nvs_handle);
+    err = nvs_open("wifi_config", NVS_READWRITE, &nvs_handle);
     if (err != ESP_OK) {
         ESP_LOGE(TAG, "Error opening NVS handle: %s", esp_err_to_name(err));
         return err;
@@ -150,7 +149,7 @@ esp_err_t wifi_load_config(void)
     nvs_handle_t nvs_handle;
     esp_err_t err;
 
-    err = nvs_open(WIFI_STORAGE_NAMESPACE, NVS_READONLY, &nvs_handle);
+    err = nvs_open("wifi_config", NVS_READONLY, &nvs_handle);
     if (err != ESP_OK) {
         ESP_LOGI(TAG, "No saved WiFi configuration found, using defaults");
         return err;

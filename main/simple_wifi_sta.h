@@ -2,7 +2,7 @@
 #define _WIFI_MANAGER_H_
 #include "esp_err.h"
 
-//定义了一个枚举
+//定义一个枚举
 typedef enum
 {
     WIFI_DISCONNECTED,      //wifi断开

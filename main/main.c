@@ -49,11 +49,18 @@ void app_main(void) {
     }
     
     // 在NVS初始化完成后立即加载配置
+    //加载串口配置
+    ESP_LOGI(TAG, "正在从NVS加载串口配置...");
+    ret = load_uart_params_from_nvs();
+    if (ret != ESP_OK) {
+        ESP_LOGW(TAG, "加载串口配置失败，使用默认配置");
+    }
+
     //加载modbusrtu主站配置
-    ESP_LOGI(TAG, "正在从NVS加载配置...");
+    ESP_LOGI(TAG, "正在从NVS加载Modbus配置...");
     ret = load_modbus_config_from_nvs();
     if (ret != ESP_OK) {
-        ESP_LOGW(TAG, "加载配置失败，使用默认配置");
+        ESP_LOGW(TAG, "加载Modbus配置失败，使用默认配置");
     }
     // 加载MQTT配置
     ESP_LOGI(TAG, "正在从NVS加载MQTT配置...");

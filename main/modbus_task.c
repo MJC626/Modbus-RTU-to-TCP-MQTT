@@ -34,7 +34,7 @@ void start_modbus(void)
                           master2_recv_buf, sizeof(master2_recv_buf));
     mb_ctx2.uart_port = 2;
 
-    // 初始化UART3(实际使用UART0)的Modbus
+    // 初始化UART3的Modbus（使用UART0的物理接口）
     agile_modbus_rtu_init(&mb_ctx3.ctx_rtu, master3_send_buf, sizeof(master3_send_buf),
                           master3_recv_buf, sizeof(master3_recv_buf));
     mb_ctx3.uart_port = 3;
@@ -68,17 +68,18 @@ void modbus_poll_task(void *pvParameters)
     modbus_context_t *mb_ctx = (modbus_context_t *)pvParameters;
     // 获取 Modbus RTU 上下文
     agile_modbus_t *ctx = &mb_ctx->ctx_rtu._ctx;
-    uint8_t target_uart = mb_ctx->uart_port; // 直接获取目标 UART 端口
+    uint8_t target_uart = mb_ctx->uart_port;
 
     while (1)
     {
         // 遍历所有的 Modbus 组
         for (int i = 0; i < modbus_config.group_count; i++)
         {
-        // 直接跳过不匹配的 UART 组
-        if (!modbus_config.groups[i].enabled || modbus_config.groups[i].uart_port != target_uart) {
-            continue;
-        }
+            // 直接跳过不匹配的 UART 组
+            if (!modbus_config.groups[i].enabled || 
+                modbus_config.groups[i].uart_port != target_uart) {
+                continue;
+            }
 
             // 设置当前组的从设备地址
             agile_modbus_set_slave(ctx, modbus_config.groups[i].slave_addr);
@@ -116,7 +117,7 @@ void modbus_poll_task(void *pvParameters)
             // 如果请求序列化成功
             if (send_len > 0)
             {
-                int read_len;
+                int read_len = -1;  // 初始化为-1
                 // 根据 UART 端口选择不同的发送和接收函数
                 if (mb_ctx->uart_port == 1)
                 {
@@ -128,10 +129,14 @@ void modbus_poll_task(void *pvParameters)
                     send_data2(ctx->send_buf, send_len);
                     read_len = receive_data2(ctx->read_buf, ctx->read_bufsz, 1000, 20);
                 }
-                else // UART0
+                else if (mb_ctx->uart_port == 3)  // UART3 使用 UART0 的物理接口
                 {
                     send_data0(ctx->send_buf, send_len);
                     read_len = receive_data0(ctx->read_buf, ctx->read_bufsz, 1000, 20);
+                }
+                else 
+                {
+                    ESP_LOGE(TAG, "无效的 UART 端口: %d", mb_ctx->uart_port);
                 }
 
                 if (read_len > 0)

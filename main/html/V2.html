@@ -75,7 +75,7 @@
             right: 20px;
         }
 
-        /* 模态框样式 */
+        /* 系统配置模态框样式 */
         .modal {
             display: none;
             position: fixed;
@@ -85,18 +85,21 @@
             width: 100%;
             height: 100%;
             background-color: rgba(0, 0, 0, 0.4);
+            overflow-y: auto; /* 添加滚动条 */
         }
 
         .modal-content {
             background-color: #fefefe;
-            margin: 15% auto;
+            margin: 5% auto; /* 调整上边距 */
             padding: 20px;
             border: 1px solid #888;
             width: 80%;
             max-width: 500px;
             border-radius: 8px;
+            max-height: 90vh; /* 设置最大高度 */
+            overflow-y: auto; /* 内容过多时显示滚动条 */
         }
-
+        
         .close {
             color: #aaa;
             float: right;
@@ -353,28 +356,161 @@
             <div id="tcp_slave_status"></div>
         </div>
 
-        <!-- WiFi配置模态框 -->
+        <!-- 系统配置模态框 -->
         <div id="wifiModal" class="modal">
             <div class="modal-content">
                 <span class="close" onclick="closeWifiModal()">&times;</span>
-                <h2>WiFi配置</h2>
+                <h2>系统配置</h2>
                 <!-- WiFi配置表单 -->
-                <div class="form-group">
-                    <label for="wifi_ssid">SSID:</label>
-                    <input type="text" id="wifi_ssid" placeholder="输入WiFi名称">
+                <div class="group-container">
+                    <div class="group-header">
+                        <span class="group-title">WiFi配置</span>
+                    </div>
+                    <div class="form-group">
+                        <label for="wifi_ssid">SSID:</label>
+                        <input type="text" id="wifi_ssid" placeholder="输入WiFi名称">
+                    </div>
+                    <div class="form-group">
+                        <label for="wifi_password">密码:</label>
+                        <input type="password" id="wifi_password" placeholder="输入WiFi密码">
+                    </div>
+                    <!-- WiFi配置保存按钮和状态显示 -->
+                    <button onclick="saveWifiConfig()">保存WiFi配置</button>
+                    <div id="wifi_status"></div>
                 </div>
-                <div class="form-group">
-                    <label for="wifi_password">密码:</label>
-                    <input type="password" id="wifi_password" placeholder="输入WiFi密码">
+
+                <!-- 串口配置表单 -->
+                <div class="group-container">
+                    <div class="group-header">
+                        <span class="group-title">串口配置</span>
+                    </div>
+                    <!-- UART1配置 -->
+                    <div class="form-group">
+                        <h3>UART1</h3>
+                        <div class="form-group">
+                            <label for="uart1_baud">波特率:</label>
+                            <select id="uart1_baud">
+                                <option value="9600">9600</option>
+                                <option value="19200">19200</option>
+                                <option value="38400">38400</option>
+                                <option value="57600">57600</option>
+                                <option value="115200">115200</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label for="uart1_data">数据位:</label>
+                            <select id="uart1_data">
+                                <option value="8">8</option>
+                                <option value="7">7</option>
+                                <option value="6">6</option>
+                                <option value="5">5</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label for="uart1_parity">校验位:</label>
+                            <select id="uart1_parity">
+                                <option value="0">无校验</option>
+                                <option value="1">奇校验</option>
+                                <option value="2">偶校验</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label for="uart1_stop">停止位:</label>
+                            <select id="uart1_stop">
+                                <option value="1">1位</option>
+                                <option value="2">1.5位</option>
+                                <option value="3">2位</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <!-- UART2配置 -->
+                    <div class="form-group">
+                        <h3>UART2</h3>
+                        <div class="form-group">
+                            <label for="uart2_baud">波特率:</label>
+                            <select id="uart2_baud">
+                                <option value="9600">9600</option>
+                                <option value="19200">19200</option>
+                                <option value="38400">38400</option>
+                                <option value="57600">57600</option>
+                                <option value="115200">115200</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label for="uart2_data">数据位:</label>
+                            <select id="uart2_data">
+                                <option value="8">8</option>
+                                <option value="7">7</option>
+                                <option value="6">6</option>
+                                <option value="5">5</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label for="uart2_parity">校验位:</label>
+                            <select id="uart2_parity">
+                                <option value="0">无校验</option>
+                                <option value="1">奇校验</option>
+                                <option value="2">偶校验</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label for="uart2_stop">停止位:</label>
+                            <select id="uart2_stop">
+                                <option value="1">1位</option>
+                                <option value="2">1.5位</option>
+                                <option value="3">2位</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <!-- UART3配置 -->
+                    <div class="form-group">
+                        <h3>UART3</h3>
+                        <div class="form-group">
+                            <label for="uart3_baud">波特率:</label>
+                            <select id="uart3_baud">
+                                <option value="9600">9600</option>
+                                <option value="19200">19200</option>
+                                <option value="38400">38400</option>
+                                <option value="57600">57600</option>
+                                <option value="115200">115200</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label for="uart3_data">数据位:</label>
+                            <select id="uart3_data">
+                                <option value="8">8</option>
+                                <option value="7">7</option>
+                                <option value="6">6</option>
+                                <option value="5">5</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label for="uart3_parity">校验位:</label>
+                            <select id="uart3_parity">
+                                <option value="0">无校验</option>
+                                <option value="1">奇校验</option>
+                                <option value="2">偶校验</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label for="uart3_stop">停止位:</label>
+                            <select id="uart3_stop">
+                                <option value="1">1位</option>
+                                <option value="2">1.5位</option>
+                                <option value="3">2位</option>
+                            </select>
+                        </div>
+                    </div>
+                    <!-- 串口配置保存按钮和状态显示 -->
+                    <button onclick="saveUartConfig()">保存串口配置</button>
+                    <div id="uart_status"></div>
                 </div>
-                <!-- WiFi配置保存按钮和状态显示 -->
-                <button onclick="saveWifiConfig()">保存WiFi配置</button>
-                <div id="wifi_status"></div>
             </div>
         </div>
     </div>
-    <script>
-        // 常量定义
+    <script>        // 常量定义
         const CONFIG = {
             MAX_REGISTERS_PER_GROUP: 100,
             MAX_MAP_GROUPS: 10,
@@ -382,8 +518,9 @@
             API_ENDPOINTS: {
                 WIFI: '/api/wifi/config',
                 MQTT: '/api/mqtt/config',
-                MODBUS: '/api/config',
-                TCP_SLAVE: '/api/tcp_slave/config'
+                MODBUS: '/api/modbus/config',
+                TCP_SLAVE: '/api/tcp_slave/config',
+                UART: '/api/uart/config'  // 新增串口配置API端点
             },
             UI_ELEMENTS: {
                 TABS: ['modbus', 'mqtt', 'tcpslave'],
@@ -469,7 +606,6 @@
                     if (result.status === 'ok') {
                         UIUtils.showStatus('wifi_status', result.message);
                         setTimeout(() => {
-                            this.close();
                             document.getElementById('wifi_status').innerHTML = '';
                         }, CONFIG.UI_ELEMENTS.STATUS_TIMEOUT);
                     } else {
@@ -481,6 +617,52 @@
                 }
             }
         };
+
+        // 串口配置管理
+        async function saveUartConfig() {
+            // 获取所有串口配置
+            const uartConfigs = [];
+            
+            // 按照3,1,2的顺序添加配置
+            // UART3配置
+            uartConfigs.push({
+                baud_rate: parseInt(document.getElementById('uart3_baud').value),
+                data_bits: parseInt(document.getElementById('uart3_data').value),
+                parity: parseInt(document.getElementById('uart3_parity').value),
+                stop_bits: parseInt(document.getElementById('uart3_stop').value)
+            });
+            
+            // UART1配置
+            uartConfigs.push({
+                baud_rate: parseInt(document.getElementById('uart1_baud').value),
+                data_bits: parseInt(document.getElementById('uart1_data').value),
+                parity: parseInt(document.getElementById('uart1_parity').value),
+                stop_bits: parseInt(document.getElementById('uart1_stop').value)
+            });
+            
+            // UART2配置
+            uartConfigs.push({
+                baud_rate: parseInt(document.getElementById('uart2_baud').value),
+                data_bits: parseInt(document.getElementById('uart2_data').value),
+                parity: parseInt(document.getElementById('uart2_parity').value),
+                stop_bits: parseInt(document.getElementById('uart2_stop').value)
+            });
+
+            try {
+                const result = await ApiService.request(CONFIG.API_ENDPOINTS.UART, 'POST', {
+                    uart_configs: uartConfigs
+                });
+
+                if (result.status === 'ok') {
+                    UIUtils.showStatus('uart_status', '串口配置已保存');
+                } else {
+                    UIUtils.showStatus('uart_status', '串口配置保存失败', 'error');
+                }
+            } catch (error) {
+                console.error('保存串口配置失败:', error);
+                alert('保存串口配置失败');
+            }
+        }
 
         // MQTT配置管理
         const MqttManager = {

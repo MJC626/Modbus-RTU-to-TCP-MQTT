@@ -5,6 +5,7 @@
 #include "simple_wifi_sta.h"
 #include "mqtt.h"
 #include "tcp_slave_regs.h"
+#include "uart_rtu.h"
 
 // 日志标签
 static const char *TAG = "web_server";
@@ -74,24 +75,22 @@ esp_err_t update_modbus_config_handler(httpd_req_t *req)
     }
 
     cJSON *poll_interval = cJSON_GetObjectItem(root, "poll_interval");
-    cJSON *group_count = cJSON_GetObjectItem(root, "group_count");
     cJSON *groups = cJSON_GetObjectItem(root, "groups");
 
     if (poll_interval)
         modbus_config.poll_interval = poll_interval->valueint;
-    if (group_count)
-    {
-        modbus_config.group_count = group_count->valueint;
-        if (modbus_config.group_count > MAX_POLL_GROUPS)
-        {
-            modbus_config.group_count = MAX_POLL_GROUPS;
-        }
-    }
 
     if (groups && cJSON_IsArray(groups))
     {
         int array_size = cJSON_GetArraySize(groups);
-        for (int i = 0; i < array_size && i < modbus_config.group_count; i++)
+        // 直接使用数组大小作为group_count
+        modbus_config.group_count = array_size;
+        if (modbus_config.group_count > MAX_POLL_GROUPS)
+        {
+            modbus_config.group_count = MAX_POLL_GROUPS;
+        }
+
+        for (int i = 0; i < modbus_config.group_count; i++)
         {
             cJSON *group = cJSON_GetArrayItem(groups, i);
             cJSON *enabled = cJSON_GetObjectItem(group, "enabled");
@@ -129,7 +128,21 @@ esp_err_t update_modbus_config_handler(httpd_req_t *req)
                 }
             }
             if (start_addr)
-                modbus_config.groups[i].start_addr = start_addr->valueint;
+            {
+                // 处理空字符串的情况
+                if (cJSON_IsString(start_addr) && strlen(start_addr->valuestring) == 0)
+                {
+                    modbus_config.groups[i].start_addr = 0;
+                }
+                else if (cJSON_IsNumber(start_addr))
+                {
+                    modbus_config.groups[i].start_addr = start_addr->valueint;
+                }
+                else if (cJSON_IsString(start_addr))
+                {
+                    modbus_config.groups[i].start_addr = atoi(start_addr->valuestring);
+                }
+            }
             if (reg_count)
             {
                 modbus_config.groups[i].reg_count = reg_count->valueint;
@@ -587,6 +600,146 @@ esp_err_t wifi_config_handler(httpd_req_t *req)
     return ESP_OK;
 }
 
+// 串口配置更新处理函数
+esp_err_t uart_config_handler(httpd_req_t *req)
+{
+    char *content = malloc(1024);
+    if (!content)
+    {
+        return ESP_FAIL;
+    }
+
+    int ret = httpd_req_recv(req, content, 1024);
+    if (ret <= 0)
+    {
+        free(content);
+        return ESP_FAIL;
+    }
+    content[ret] = '\0';
+
+    cJSON *root = cJSON_Parse(content);
+    if (!root)
+    {
+        free(content);
+        httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, "Invalid JSON");
+        return ESP_FAIL;
+    }
+
+    cJSON *uart_configs = cJSON_GetObjectItem(root, "uart_configs");
+    if (!uart_configs || !cJSON_IsArray(uart_configs))
+    {
+        cJSON_Delete(root);
+        free(content);
+        httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, "Missing uart_configs array");
+        return ESP_FAIL;
+    }
+
+    int config_count = cJSON_GetArraySize(uart_configs);
+    if (config_count > 3)
+    {
+        config_count = 3; // 限制最大串口数量为3
+    }
+
+    for (int i = 0; i < config_count; i++)
+    {
+        cJSON *uart_config = cJSON_GetArrayItem(uart_configs, i);
+        if (!uart_config)
+            continue;
+
+        cJSON *baud_rate = cJSON_GetObjectItem(uart_config, "baud_rate");
+        cJSON *data_bits = cJSON_GetObjectItem(uart_config, "data_bits");
+        cJSON *parity = cJSON_GetObjectItem(uart_config, "parity");
+        cJSON *stop_bits = cJSON_GetObjectItem(uart_config, "stop_bits");
+
+        if (baud_rate && cJSON_IsNumber(baud_rate))
+        {
+            switch(baud_rate->valueint) {
+                case 9600:
+                    uart_params[i].baud_rate = BAUD_9600;
+                    break;
+                case 19200:
+                    uart_params[i].baud_rate = BAUD_19200;
+                    break;
+                case 38400:
+                    uart_params[i].baud_rate = BAUD_38400;
+                    break;
+                case 57600:
+                    uart_params[i].baud_rate = BAUD_57600;
+                    break;
+                case 115200:
+                    uart_params[i].baud_rate = BAUD_115200;
+                    break;
+                default:
+                    uart_params[i].baud_rate = BAUD_9600;
+            }
+        }
+        if (data_bits && cJSON_IsNumber(data_bits))
+        {
+            switch(data_bits->valueint) {
+                case 5:
+                    uart_params[i].data_bits = DATA_BITS_5;
+                    break;
+                case 6:
+                    uart_params[i].data_bits = DATA_BITS_6;
+                    break;
+                case 7:
+                    uart_params[i].data_bits = DATA_BITS_7;
+                    break;
+                case 8:
+                    uart_params[i].data_bits = DATA_BITS_8;
+                    break;
+                default:
+                    uart_params[i].data_bits = DATA_BITS_8;
+            }
+        }
+        if (parity && cJSON_IsNumber(parity))
+        {
+            switch(parity->valueint) {
+                case 0:
+                    uart_params[i].parity = PARITY_NONE;
+                    break;
+                case 1:
+                    uart_params[i].parity = PARITY_ODD;
+                    break;
+                case 2:
+                    uart_params[i].parity = PARITY_EVEN;
+                    break;
+                default:
+                    uart_params[i].parity = PARITY_NONE;
+            }
+        }
+        if (stop_bits && cJSON_IsNumber(stop_bits))
+        {
+            switch(stop_bits->valueint) {
+                case 1:
+                    uart_params[i].stop_bits = STOP_BITS_1;
+                    break;
+                case 2:
+                    uart_params[i].stop_bits = STOP_BITS_1_5;
+                    break;
+                case 3:
+                    uart_params[i].stop_bits = STOP_BITS_2;
+                    break;
+                default:
+                    uart_params[i].stop_bits = STOP_BITS_1;
+            }
+        }
+    }
+
+    // 释放资源
+    cJSON_Delete(root);
+    // 在发送响应之前保存配置
+    esp_err_t save_err = save_uart_params_to_nvs();
+    if (save_err != ESP_OK)
+    {
+        ESP_LOGE(TAG, "NVS存储失败");
+    }
+    free(content);
+    // 发送成功响应
+    httpd_resp_sendstr(req, "{\"status\":\"ok\"}");
+    return ESP_OK;
+}
+
 // URI处理结构
 static const httpd_uri_t html = {
     .uri = "/",
@@ -595,13 +748,13 @@ static const httpd_uri_t html = {
     .user_ctx = NULL};
 
 static const httpd_uri_t modbus_config_get = {
-    .uri = "/api/config",
+    .uri = "/api/modbus/config",
     .method = HTTP_GET,
     .handler = get_modbus_config_handler,
     .user_ctx = NULL};
 
 static const httpd_uri_t modbus_config_post = {
-    .uri = "/api/config",
+    .uri = "/api/modbus/config",
     .method = HTTP_POST,
     .handler = update_modbus_config_handler,
     .user_ctx = NULL};
@@ -636,11 +789,18 @@ static const httpd_uri_t wifi_config = {
     .handler = wifi_config_handler,
     .user_ctx = NULL};
 
+static const httpd_uri_t uart_config = {
+    .uri = "/api/uart/config",
+    .method = HTTP_POST,
+    .handler = uart_config_handler,
+    .user_ctx = NULL};
+
 httpd_handle_t start_webserver(void)
 {
     httpd_handle_t server = NULL;
     httpd_config_t config = HTTPD_DEFAULT_CONFIG();
     config.stack_size = 8192;
+    config.max_uri_handlers = 10;  // 增加处理程序的最大数量
 
     if (httpd_start(&server, &config) == ESP_OK)
     {
@@ -652,6 +812,7 @@ httpd_handle_t start_webserver(void)
         httpd_register_uri_handler(server, &tcp_slave_get);
         httpd_register_uri_handler(server, &tcp_slave_post);
         httpd_register_uri_handler(server, &wifi_config);
+        httpd_register_uri_handler(server, &uart_config);
         ESP_LOGI(TAG, "HTTP服务器启动成功");
         return server;
     }

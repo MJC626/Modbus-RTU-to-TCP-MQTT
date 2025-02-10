@@ -7,9 +7,41 @@
 #include "driver/gpio.h"
 #include "esp_log.h"
 #include "uart_rtu.h"
+#include "nvs_flash.h"
+#include "nvs.h"
 
 // 定义缓冲区大小，使用串口缓冲区的默认大小
 #define BUF_SIZE UART_BUFFER_SIZE
+
+// 定义固定的串口引脚
+#define UART0_TX_PIN 6
+#define UART0_RX_PIN 7
+#define UART1_TX_PIN 17
+#define UART1_RX_PIN 18
+#define UART2_TX_PIN 15
+#define UART2_RX_PIN 16
+
+// 定义3个串口的参数数组
+uart_param_t uart_params[3] = {
+    {
+        .baud_rate = BAUD_115200,
+        .data_bits = DATA_BITS_8,
+        .parity = PARITY_NONE,
+        .stop_bits = STOP_BITS_1
+    },
+    {
+        .baud_rate = BAUD_115200,
+        .data_bits = DATA_BITS_8,
+        .parity = PARITY_NONE,
+        .stop_bits = STOP_BITS_1
+    },
+    {
+        .baud_rate = BAUD_115200,
+        .data_bits = DATA_BITS_8,
+        .parity = PARITY_NONE,
+        .stop_bits = STOP_BITS_1
+    }
+};
 
 // 声明UART0、UART1和UART2的事件队列句柄
 static QueueHandle_t uart0_queue;
@@ -197,35 +229,32 @@ static void uart2_event_task(void *pvParameters) {
 //初始化UART0、UART1和UART2
 int uart_init(void) {
     // UART基本配置
-    uart_config_t uart_config = {
-        .baud_rate = 115200,          // 波特率
-        .data_bits = UART_DATA_8_BITS,// 数据位
-        .parity = UART_PARITY_DISABLE,// 无校验
-        .stop_bits = UART_STOP_BITS_1,// 1位停止位
-        .flow_ctrl = UART_HW_FLOWCTRL_DISABLE,  // 禁用硬件流控
-        .source_clk = UART_SCLK_APB,  // 使用APB时钟源
-    };
+    uart_config_t uart_config;
     
-    // UART0 配置
-    ESP_ERROR_CHECK(uart_param_config(UART_NUM_0, &uart_config));
-    ESP_ERROR_CHECK(uart_set_pin(UART_NUM_0, 6, 7, UART_PIN_NO_CHANGE, UART_PIN_NO_CHANGE));
-    ESP_ERROR_CHECK(uart_driver_install(UART_NUM_0, BUF_SIZE * 2, BUF_SIZE * 2, 20, &uart0_queue, ESP_INTR_FLAG_IRAM));
-    uart_set_rx_timeout(UART_NUM_0, 3); // 设置超时为3个字符时间(硬件超时)
-    uart_set_rx_full_threshold(UART_NUM_0, 120);
-
-    // UART1 配置
-    ESP_ERROR_CHECK(uart_param_config(UART_NUM_1, &uart_config));
-    ESP_ERROR_CHECK(uart_set_pin(UART_NUM_1, 17, 18, UART_PIN_NO_CHANGE, UART_PIN_NO_CHANGE));
-    ESP_ERROR_CHECK(uart_driver_install(UART_NUM_1, BUF_SIZE * 2, BUF_SIZE * 2, 20, &uart1_queue, ESP_INTR_FLAG_IRAM));
-    uart_set_rx_timeout(UART_NUM_1, 3); // 设置超时为3个字符时间(硬件超时)
-    uart_set_rx_full_threshold(UART_NUM_1, 120);
-
-    // UART2 配置
-    ESP_ERROR_CHECK(uart_param_config(UART_NUM_2, &uart_config));
-    ESP_ERROR_CHECK(uart_set_pin(UART_NUM_2, 15, 16, UART_PIN_NO_CHANGE, UART_PIN_NO_CHANGE));
-    ESP_ERROR_CHECK(uart_driver_install(UART_NUM_2, BUF_SIZE * 2, BUF_SIZE * 2, 20, &uart2_queue, ESP_INTR_FLAG_IRAM));
-    uart_set_rx_timeout(UART_NUM_2, 3); // 设置超时为3个字符时间(硬件超时)
-    uart_set_rx_full_threshold(UART_NUM_2, 120);
+    // 初始化3个UART
+    for(int i = 0; i < 3; i++) {
+        uart_config.baud_rate = uart_params[i].baud_rate;
+        uart_config.data_bits = uart_params[i].data_bits;
+        uart_config.parity = uart_params[i].parity;
+        uart_config.stop_bits = uart_params[i].stop_bits;
+        uart_config.flow_ctrl = UART_HW_FLOWCTRL_DISABLE;
+        uart_config.rx_flow_ctrl_thresh = 122;
+        uart_config.source_clk = UART_SCLK_APB;
+        
+        ESP_ERROR_CHECK(uart_param_config(i, &uart_config));
+        
+        // 根据UART端口号设置对应的固定引脚
+        if (i == 0) {
+            ESP_ERROR_CHECK(uart_set_pin(i, UART0_TX_PIN, UART0_RX_PIN, UART_PIN_NO_CHANGE, UART_PIN_NO_CHANGE));
+        } else if (i == 1) {
+            ESP_ERROR_CHECK(uart_set_pin(i, UART1_TX_PIN, UART1_RX_PIN, UART_PIN_NO_CHANGE, UART_PIN_NO_CHANGE));
+        } else {
+            ESP_ERROR_CHECK(uart_set_pin(i, UART2_TX_PIN, UART2_RX_PIN, UART_PIN_NO_CHANGE, UART_PIN_NO_CHANGE));
+        }
+        
+        ESP_ERROR_CHECK(uart_driver_install(i, BUF_SIZE * 2, BUF_SIZE * 2, 20, i == 0 ? &uart0_queue : (i == 1 ? &uart1_queue : &uart2_queue), ESP_INTR_FLAG_IRAM));
+        uart_set_rx_timeout(i, 3);
+        }
     
     rx0_sem = xSemaphoreCreateBinary();
     rx1_sem = xSemaphoreCreateBinary();
@@ -240,4 +269,103 @@ int uart_init(void) {
     xTaskCreate(uart2_event_task, "uart2_event_task", 2048, NULL, 12, NULL);
     
     return ESP_OK;
+}
+
+// 从NVS中读取UART参数
+esp_err_t load_uart_params_from_nvs(void) {
+    nvs_handle_t nvs_handle;
+    esp_err_t err;
+
+    // 打开NVS命名空间
+    err = nvs_open("uart_params", NVS_READWRITE, &nvs_handle);
+    if (err != ESP_OK) {
+        ESP_LOGE("UART", "Error opening NVS handle: %s", esp_err_to_name(err));
+        return err;
+    }
+
+    // 为每个UART端口分别读取参数
+    for(int i = 0; i < 3; i++) {
+        char key[16];
+        uint32_t value;
+        
+        // 读取波特率
+        snprintf(key, sizeof(key), "baud_rate_%d", i);
+        err = nvs_get_u32(nvs_handle, key, &value);
+        if (err == ESP_OK) {
+            uart_params[i].baud_rate = (uart_rtu_baud_rate_t)value;
+        }
+        
+        // 读取数据位
+        snprintf(key, sizeof(key), "data_bits_%d", i);
+        err = nvs_get_u32(nvs_handle, key, &value);
+        if (err == ESP_OK) {
+            uart_params[i].data_bits = (uart_rtu_data_bits_t)value;
+        }
+        
+        // 读取校验位
+        snprintf(key, sizeof(key), "parity_%d", i);
+        err = nvs_get_u32(nvs_handle, key, &value);
+        if (err == ESP_OK) {
+            uart_params[i].parity = (uart_rtu_parity_t)value;
+        }
+        
+        // 读取停止位
+        snprintf(key, sizeof(key), "stop_bits_%d", i);
+        err = nvs_get_u32(nvs_handle, key, &value);
+        if (err == ESP_OK) {
+            uart_params[i].stop_bits = (uart_rtu_stop_bits_t)value;
+        }
+    }
+
+    // 关闭NVS句柄
+    nvs_close(nvs_handle);
+    return ESP_OK;
+}
+
+// 保存UART参数到NVS
+esp_err_t save_uart_params_to_nvs(void) {
+    nvs_handle_t nvs_handle;
+    esp_err_t err;
+
+    // 打开NVS命名空间
+    err = nvs_open("uart_params", NVS_READWRITE, &nvs_handle);
+    if (err != ESP_OK) {
+        ESP_LOGE("UART", "Error opening NVS handle: %s", esp_err_to_name(err));
+        return err;
+    }
+
+    // 为每个UART端口分别保存参数
+    for(int i = 0; i < 3; i++) {
+        char key[16];
+        
+        // 保存波特率
+        snprintf(key, sizeof(key), "baud_rate_%d", i);
+        err = nvs_set_u32(nvs_handle, key, (uint32_t)uart_params[i].baud_rate);
+        if (err != ESP_OK) continue;
+        
+        // 保存数据位
+        snprintf(key, sizeof(key), "data_bits_%d", i);
+        err = nvs_set_u32(nvs_handle, key, (uint32_t)uart_params[i].data_bits);
+        if (err != ESP_OK) continue;
+        
+        // 保存校验位
+        snprintf(key, sizeof(key), "parity_%d", i);
+        err = nvs_set_u32(nvs_handle, key, (uint32_t)uart_params[i].parity);
+        if (err != ESP_OK) continue;
+        
+        // 保存停止位
+        snprintf(key, sizeof(key), "stop_bits_%d", i);
+        err = nvs_set_u32(nvs_handle, key, (uint32_t)uart_params[i].stop_bits);
+        if (err != ESP_OK) continue;
+    }
+
+    // 提交更改
+    err = nvs_commit(nvs_handle);
+    if (err != ESP_OK) {
+        ESP_LOGE("UART", "Error committing NVS changes: %s", esp_err_to_name(err));
+    }
+
+    // 关闭NVS句柄
+    nvs_close(nvs_handle);
+    return err;
 }
