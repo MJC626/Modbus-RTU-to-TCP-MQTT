@@ -37,8 +37,22 @@ const agile_modbus_slave_util_t slave_util = {
 };
 
 
-static void handle_client(const int sock)
+#define MAX_CLIENTS 3
+#define SERVER_TASK_STACK_SIZE 4096
+#define SERVER_TASK_PRIORITY 5
+
+typedef struct {
+    int socket;
+    TaskHandle_t task;
+} client_info_t;
+
+// 全局变量声明
+static client_info_t clients[MAX_CLIENTS] = {0};
+static SemaphoreHandle_t clients_mutex = NULL;
+
+static void handle_client(void *pvParameters)
 {
+    int sock = (int)pvParameters;
     uint8_t ctx_send_buf[AGILE_MODBUS_MAX_ADU_LENGTH];
     uint8_t ctx_read_buf[AGILE_MODBUS_MAX_ADU_LENGTH];
     
@@ -47,7 +61,7 @@ static void handle_client(const int sock)
     agile_modbus_t *ctx = &ctx_tcp._ctx;
     agile_modbus_tcp_init(&ctx_tcp, ctx_send_buf, sizeof(ctx_send_buf), 
                          ctx_read_buf, sizeof(ctx_read_buf));
-    agile_modbus_set_slave(ctx, tcp_slave.slave_address);//设置从站地址
+    agile_modbus_set_slave(ctx, tcp_slave.slave_address);
 
     // 设置非阻塞模式
     int flags = fcntl(sock, F_GETFL, 0);
@@ -100,7 +114,7 @@ static void handle_client(const int sock)
                     if (written < 0) {
                         if (errno != EAGAIN) {
                             ESP_LOGE(TAG, "Send error: errno %d", errno);
-                            goto exit;
+                            goto cleanup;
                         }
                         // 如果是 EAGAIN，等待一下再重试
                         vTaskDelay(pdMS_TO_TICKS(10));
@@ -113,8 +127,25 @@ static void handle_client(const int sock)
         }
     }
 
-exit:
-    ESP_LOGI(TAG, "Client connection closed");
+cleanup:
+    // 清理客户端连接
+    if (clients_mutex != NULL) {
+        xSemaphoreTake(clients_mutex, portMAX_DELAY);
+        for (int i = 0; i < MAX_CLIENTS; i++) {
+            if (clients[i].socket == sock) {
+                ESP_LOGI(TAG, "Cleaning up client slot %d", i);
+                shutdown(clients[i].socket, 0);
+                close(clients[i].socket);
+                clients[i].socket = 0;
+                clients[i].task = NULL;
+                break;
+            }
+        }
+        xSemaphoreGive(clients_mutex);
+    }
+    
+    ESP_LOGI(TAG, "Client connection closed, deleting task");
+    vTaskDelete(NULL);  // 删除当前任务
 }
 
 static void tcp_server_task(void *pvParameters)
@@ -141,8 +172,15 @@ static void tcp_server_task(void *pvParameters)
         goto cleanup;
     }
 
-    if (listen(listen_sock, 1) != 0) {
+    if (listen(listen_sock, MAX_CLIENTS) != 0) {
         ESP_LOGE(TAG, "Socket listen failed: errno %d", errno);
+        goto cleanup;
+    }
+
+    // 创建互斥锁
+    clients_mutex = xSemaphoreCreateMutex();
+    if (clients_mutex == NULL) {
+        ESP_LOGE(TAG, "Failed to create mutex");
         goto cleanup;
     }
 
@@ -170,21 +208,56 @@ static void tcp_server_task(void *pvParameters)
 
         char addr_str[128];
         inet_ntoa_r(source_addr.sin_addr, addr_str, sizeof(addr_str) - 1);
-        ESP_LOGI(TAG, "Client connected: %s", addr_str);
+        
+        // 查找空闲的客户端槽位
+        xSemaphoreTake(clients_mutex, portMAX_DELAY);
+        int slot = -1;
+        for (int i = 0; i < MAX_CLIENTS; i++) {
+            if (clients[i].socket == 0) {
+                slot = i;
+                break;
+            }
+        }
+        
+        if (slot == -1) {
+            ESP_LOGW(TAG, "Maximum clients reached, rejecting connection from %s", addr_str);
+            xSemaphoreGive(clients_mutex);
+            shutdown(sock, 0);
+            close(sock);
+            continue;
+        }
 
-        handle_client(sock);
-        shutdown(sock, 0);
-        close(sock);
+        ESP_LOGI(TAG, "Client connected on slot %d: %s", slot, addr_str);
+        clients[slot].socket = sock;
+        
+        // 为每个客户端创建一个任务
+        char task_name[32];
+        snprintf(task_name, sizeof(task_name), "client_%d", slot);
+        if (xTaskCreate(handle_client, task_name, SERVER_TASK_STACK_SIZE, 
+                       (void*)(intptr_t)sock, SERVER_TASK_PRIORITY, &clients[slot].task) != pdPASS) {
+            ESP_LOGE(TAG, "Failed to create client task");
+            clients[slot].socket = 0;
+            shutdown(sock, 0);
+            close(sock);
+        }
+        
+        xSemaphoreGive(clients_mutex);
     }
 
 cleanup:
+    if (clients_mutex != NULL) {
+        vSemaphoreDelete(clients_mutex);
+        clients_mutex = NULL;
+    }
     close(listen_sock);
     vTaskDelete(NULL);       
 }
 
 void start_tcp_server(void)
 {
-
+    // 初始化客户端数组
+    memset(clients, 0, sizeof(clients));
+    
     // 初始化 Modbus tcp寄存器
     init_tcp_slave_regs();
     
@@ -193,5 +266,4 @@ void start_tcp_server(void)
                 NULL, SERVER_TASK_PRIORITY, NULL);
 
     xTaskCreate(modbus_regs_update_task, "modbus_update", 4096, NULL, 3, NULL);
-
 }
