@@ -1,7 +1,6 @@
 #include "tcp_slave_regs.h"
 #include "modbus_config.h"
 #include "esp_log.h"
-#include "nvs_flash.h"
 #include "nvs.h"
 #include <string.h>
 
@@ -10,16 +9,16 @@ SemaphoreHandle_t modbus_mutex = NULL;
 
 // 默认 tcp_slave 配置
 tcp_slave_t tcp_slave = {
-     .enabled = false,        // 默认不启用
+    .enabled = false,        // 默认不启用
     .server_port = 502,       // Modbus TCP 默认端口
-    .slave_address = 123,       // 默认从站地址
+    .slave_address = 123,     // 默认从站地址
     
     // 寄存器映射配置
     .maps = {
-        {MAP_HOLD_TO_HOLD, 0, 0, 0, 10},
-        {MAP_INPUT_TO_INPUT, 1, 0, 10, 10},
-        {MAP_COIL_TO_COIL, 2, 0, 0, 10},
-        {MAP_DISC_TO_DISC, 3, 0, 10, 10},
+        {MAP_HOLD_TO_HOLD, 0, 0, 0, 20},
+        {MAP_INPUT_TO_INPUT, 1, 0, 0, 20},
+        {MAP_COIL_TO_COIL, 2, 0, 0, 20},
+        {MAP_DISC_TO_DISC, 3, 0, 0, 20},
     },
     
     // 寄存器空间尺寸配置
@@ -43,6 +42,16 @@ void update_slave_data(void) {
     
     for (int i = 0; i < MAX_MAPS; i++) {
         if (!modbus_data.register_ready[tcp_slave.maps[i].group_index]) {
+            continue;
+        }
+
+        // 验证地址范围是否有效
+        if (tcp_slave.maps[i].slave_start_addr + tcp_slave.maps[i].count > 
+            (tcp_slave.maps[i].type == MAP_COIL_TO_COIL ? tcp_slave.reg_sizes.tab_bits_size :
+             tcp_slave.maps[i].type == MAP_DISC_TO_DISC ? tcp_slave.reg_sizes.tab_input_bits_size :
+             tcp_slave.maps[i].type == MAP_HOLD_TO_HOLD ? tcp_slave.reg_sizes.tab_registers_size :
+             tcp_slave.reg_sizes.tab_input_registers_size)) {
+            ESP_LOGE("MODBUS", "Invalid slave address range in map %d", i);
             continue;
         }
 
@@ -84,7 +93,12 @@ void update_slave_data(void) {
 
 // 线圈(Coils)处理函数
 static int get_bits_buf(void *buf, int bufsz) {
-    if (bufsz < tcp_slave.reg_sizes.tab_bits_size) return -1;
+    // 验证缓冲区大小
+    if (bufsz < tcp_slave.reg_sizes.tab_bits_size) {
+        ESP_LOGE("MODBUS", "Buffer too small for bits");
+        return -1;
+    }
+    
     xSemaphoreTake(modbus_mutex, portMAX_DELAY);
     memcpy(buf, tab_bits, tcp_slave.reg_sizes.tab_bits_size);
     xSemaphoreGive(modbus_mutex);
@@ -92,16 +106,33 @@ static int get_bits_buf(void *buf, int bufsz) {
 }
 
 static int set_bits_buf(int index, int len, void *buf, int bufsz) {
-    if (index + len > tcp_slave.reg_sizes.tab_bits_size) return -1;
+    // 验证索引和长度
+    if (index < 0 || len <= 0 || index + len > tcp_slave.reg_sizes.tab_bits_size) {
+        ESP_LOGE("MODBUS", "Invalid index or length for bits: index=%d, len=%d, max=%d", 
+                 index, len, tcp_slave.reg_sizes.tab_bits_size);
+        return -AGILE_MODBUS_EXCEPTION_ILLEGAL_DATA_ADDRESS;
+    }
+    
+    // 验证缓冲区大小
+    if (bufsz < len) {
+        ESP_LOGE("MODBUS", "Buffer too small for bits");
+        return -AGILE_MODBUS_EXCEPTION_SLAVE_OR_SERVER_FAILURE;
+    }
+    
     xSemaphoreTake(modbus_mutex, portMAX_DELAY);
-    memcpy(&tab_bits[index], &((uint8_t *)buf)[index], len);
+    memcpy(&tab_bits[index], buf, len);
     xSemaphoreGive(modbus_mutex);
     return 0;
 }
 
 // 离散输入(Discrete Inputs)处理函数
 static int get_input_bits_buf(void *buf, int bufsz) {
-    if (bufsz < tcp_slave.reg_sizes.tab_input_bits_size) return -1;
+    // 验证缓冲区大小
+    if (bufsz < tcp_slave.reg_sizes.tab_input_bits_size) {
+        ESP_LOGE("MODBUS", "Buffer too small for input bits");
+        return -1;
+    }
+    
     xSemaphoreTake(modbus_mutex, portMAX_DELAY);
     memcpy(buf, tab_input_bits, tcp_slave.reg_sizes.tab_input_bits_size);
     xSemaphoreGive(modbus_mutex);
@@ -110,7 +141,12 @@ static int get_input_bits_buf(void *buf, int bufsz) {
 
 // 保持寄存器(Holding Registers)处理函数
 static int get_registers_buf(void *buf, int bufsz) {
-    if (bufsz < tcp_slave.reg_sizes.tab_registers_size * sizeof(uint16_t)) return -1;
+    // 验证缓冲区大小
+    if (bufsz < tcp_slave.reg_sizes.tab_registers_size * sizeof(uint16_t)) {
+        ESP_LOGE("MODBUS", "Buffer too small for registers");
+        return -1;
+    }
+    
     xSemaphoreTake(modbus_mutex, portMAX_DELAY);
     memcpy(buf, tab_registers, tcp_slave.reg_sizes.tab_registers_size * sizeof(uint16_t));
     xSemaphoreGive(modbus_mutex);
@@ -118,16 +154,33 @@ static int get_registers_buf(void *buf, int bufsz) {
 }
 
 static int set_registers_buf(int index, int len, void *buf, int bufsz) {
-    if (index + len > tcp_slave.reg_sizes.tab_registers_size) return -1;
+    // 验证索引和长度
+    if (index < 0 || len <= 0 || index + len > tcp_slave.reg_sizes.tab_registers_size) {
+        ESP_LOGE("MODBUS", "Invalid index or length for registers: index=%d, len=%d, max=%d", 
+                 index, len, tcp_slave.reg_sizes.tab_registers_size);
+        return -AGILE_MODBUS_EXCEPTION_ILLEGAL_DATA_ADDRESS;
+    }
+    
+    // 验证缓冲区大小
+    if (bufsz < len * sizeof(uint16_t)) {
+        ESP_LOGE("MODBUS", "Buffer too small for registers");
+        return -AGILE_MODBUS_EXCEPTION_SLAVE_OR_SERVER_FAILURE;
+    }
+    
     xSemaphoreTake(modbus_mutex, portMAX_DELAY);
-    memcpy(&tab_registers[index], &((uint16_t *)buf)[index], len * sizeof(uint16_t));
+    memcpy(&tab_registers[index], buf, len * sizeof(uint16_t));
     xSemaphoreGive(modbus_mutex);
     return 0;
 }
 
 // 输入寄存器(Input Registers)处理函数
 static int get_input_registers_buf(void *buf, int bufsz) {
-    if (bufsz < tcp_slave.reg_sizes.tab_input_registers_size * sizeof(uint16_t)) return -1;
+    // 验证缓冲区大小
+    if (bufsz < tcp_slave.reg_sizes.tab_input_registers_size * sizeof(uint16_t)) {
+        ESP_LOGE("MODBUS", "Buffer too small for input registers");
+        return -1;
+    }
+    
     xSemaphoreTake(modbus_mutex, portMAX_DELAY);
     memcpy(buf, tab_input_registers, tcp_slave.reg_sizes.tab_input_registers_size * sizeof(uint16_t));
     xSemaphoreGive(modbus_mutex);
@@ -140,24 +193,34 @@ agile_modbus_slave_util_map_t input_bit_maps[1];
 agile_modbus_slave_util_map_t register_maps[1];
 agile_modbus_slave_util_map_t input_register_maps[1];
 
-// 初始化互斥量和从站寄存器
+// 修改初始化从站寄存器映射表的函数
 void init_tcp_slave_regs(void) {
     modbus_mutex = xSemaphoreCreateMutex();
     if (modbus_mutex == NULL) {
         ESP_LOGE("MODBUS", "Failed to create mutex");
         return;
     }
+    
     // 动态分配从站寄存器数组
     tab_bits = (uint8_t *)malloc(tcp_slave.reg_sizes.tab_bits_size);
     tab_input_bits = (uint8_t *)malloc(tcp_slave.reg_sizes.tab_input_bits_size);
     tab_registers = (uint16_t *)malloc(tcp_slave.reg_sizes.tab_registers_size * sizeof(uint16_t));
     tab_input_registers = (uint16_t *)malloc(tcp_slave.reg_sizes.tab_input_registers_size * sizeof(uint16_t));
+    
+    // 检查内存分配是否成功
+    if (tab_bits == NULL || tab_input_bits == NULL || 
+        tab_registers == NULL || tab_input_registers == NULL) {
+        ESP_LOGE("MODBUS", "Failed to allocate memory for registers");
+        return;
+    }
+    
     // 初始化从站寄存器数组
     memset(tab_bits, 0, tcp_slave.reg_sizes.tab_bits_size);
     memset(tab_input_bits, 0, tcp_slave.reg_sizes.tab_input_bits_size);
     memset(tab_registers, 0, tcp_slave.reg_sizes.tab_registers_size * sizeof(uint16_t));
     memset(tab_input_registers, 0, tcp_slave.reg_sizes.tab_input_registers_size * sizeof(uint16_t));
-    // 初始化从站寄存器映射表
+    
+    // 初始化从站寄存器映射表，确保end_addr不超过寄存器尺寸
     bit_maps[0] = (agile_modbus_slave_util_map_t){
         0x0000,
         tcp_slave.reg_sizes.tab_bits_size - 1,
@@ -187,6 +250,7 @@ void init_tcp_slave_regs(void) {
     };
 }
 
+
 // 定时更新函数
 void modbus_regs_update_task(void *pvParameters) {
     while (1) {
@@ -195,7 +259,7 @@ void modbus_regs_update_task(void *pvParameters) {
     }
 }
 
-//保存tcpslave配置函数
+// 保存tcpslave配置函数
 esp_err_t save_tcp_slave_config_to_nvs(tcp_slave_t *config) {
     nvs_handle_t handle;
     esp_err_t err;
@@ -203,6 +267,7 @@ esp_err_t save_tcp_slave_config_to_nvs(tcp_slave_t *config) {
     // 打开NVS存储
     err = nvs_open("tcp_slave", NVS_READWRITE, &handle);
     if (err != ESP_OK) {
+        ESP_LOGE("MODBUS", "Failed to open NVS: %d", err);
         return err;
     }
 
@@ -219,6 +284,7 @@ esp_err_t save_tcp_slave_config_to_nvs(tcp_slave_t *config) {
     
     err = nvs_set_blob(handle, "basic", &basic_config, sizeof(basic_config));
     if (err != ESP_OK) {
+        ESP_LOGE("MODBUS", "Failed to save basic config: %d", err);
         nvs_close(handle);
         return err;
     }
@@ -226,6 +292,7 @@ esp_err_t save_tcp_slave_config_to_nvs(tcp_slave_t *config) {
     // 保存寄存器映射配置
     err = nvs_set_blob(handle, "maps", config->maps, sizeof(config->maps));
     if (err != ESP_OK) {
+        ESP_LOGE("MODBUS", "Failed to save maps: %d", err);
         nvs_close(handle);
         return err;
     }
@@ -233,18 +300,22 @@ esp_err_t save_tcp_slave_config_to_nvs(tcp_slave_t *config) {
     // 保存寄存器空间大小配置
     err = nvs_set_blob(handle, "reg_sizes", &config->reg_sizes, sizeof(config->reg_sizes));
     if (err != ESP_OK) {
+        ESP_LOGE("MODBUS", "Failed to save reg sizes: %d", err);
         nvs_close(handle);
         return err;
     }
 
     // 提交更改到NVS
     err = nvs_commit(handle);
+    if (err != ESP_OK) {
+        ESP_LOGE("MODBUS", "Failed to commit to NVS: %d", err);
+    }
     nvs_close(handle);
     
     return err;
 }
 
-//读取tcpslave配置函数
+// 读取tcpslave配置函数
 esp_err_t load_tcp_slave_config_from_nvs(tcp_slave_t *config) {
     nvs_handle_t handle;
     esp_err_t err;
@@ -252,6 +323,7 @@ esp_err_t load_tcp_slave_config_from_nvs(tcp_slave_t *config) {
     // 打开NVS存储
     err = nvs_open("tcp_slave", NVS_READONLY, &handle);
     if (err != ESP_OK) {
+        ESP_LOGE("MODBUS", "Failed to open NVS: %d", err);
         return err;
     }
 
@@ -269,6 +341,7 @@ esp_err_t load_tcp_slave_config_from_nvs(tcp_slave_t *config) {
         config->server_port = basic_config.server_port;
         config->slave_address = basic_config.slave_address;
     } else if (err != ESP_ERR_NVS_NOT_FOUND) {
+        ESP_LOGE("MODBUS", "Failed to load basic config: %d", err);
         nvs_close(handle);
         return err;
     }
@@ -277,6 +350,7 @@ esp_err_t load_tcp_slave_config_from_nvs(tcp_slave_t *config) {
     required_size = sizeof(config->maps);
     err = nvs_get_blob(handle, "maps", config->maps, &required_size);
     if (err != ESP_OK && err != ESP_ERR_NVS_NOT_FOUND) {
+        ESP_LOGE("MODBUS", "Failed to load maps: %d", err);
         nvs_close(handle);
         return err;
     }
@@ -285,6 +359,7 @@ esp_err_t load_tcp_slave_config_from_nvs(tcp_slave_t *config) {
     required_size = sizeof(config->reg_sizes);
     err = nvs_get_blob(handle, "reg_sizes", &config->reg_sizes, &required_size);
     if (err != ESP_OK && err != ESP_ERR_NVS_NOT_FOUND) {
+        ESP_LOGE("MODBUS", "Failed to load reg sizes: %d", err);
         nvs_close(handle);
         return err;
     }

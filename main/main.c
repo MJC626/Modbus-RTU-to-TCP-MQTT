@@ -111,7 +111,7 @@ void app_main(void) {
     
     while(1)
     {
-        print_memory_info();
-        vTaskDelay(pdMS_TO_TICKS(10000));     // 每10秒打印一次堆栈信息和堆内存信息
+        // print_memory_info();
+        // vTaskDelay(pdMS_TO_TICKS(10000));     // 每10秒打印一次堆栈信息和堆内存信息
     }
 }

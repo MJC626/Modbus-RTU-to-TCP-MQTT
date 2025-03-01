@@ -7,7 +7,7 @@
 #include "esp_log.h"
 
 //WIFI默认配置
-#define DEFAULT_WIFI_SSID           "MYJ_2.4G"
+#define DEFAULT_WIFI_SSID           "Z690"
 #define DEFAULT_WIFI_PASSWORD       "18918189489"
 
 #define MAX_SSID_LEN 32

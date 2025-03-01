@@ -12,11 +12,74 @@
 static const char *TAG = "modbus_tcp_slave";
 
 // 地址检查回调函数
-static int addr_check(agile_modbus_t *ctx, struct agile_modbus_slave_info *slave_info)
-{
-    int slave = slave_info->sft->slave;
-    if ((slave != ctx->slave) && (slave != AGILE_MODBUS_BROADCAST_ADDRESS))
-        return -AGILE_MODBUS_EXCEPTION_UNKNOW;
+static int addr_check(agile_modbus_t *ctx, struct agile_modbus_slave_info *slave_info) {
+    int function = slave_info->sft->function;
+    int address = slave_info->address;
+    int nb = slave_info->nb;
+    
+    // 根据功能码检查不同类型的寄存器
+    switch (function) {
+        case AGILE_MODBUS_FC_READ_COILS:
+        case AGILE_MODBUS_FC_WRITE_SINGLE_COIL:
+        case AGILE_MODBUS_FC_WRITE_MULTIPLE_COILS:
+            if (address < 0 || address + nb > tcp_slave.reg_sizes.tab_bits_size) {
+                ESP_LOGE("MODBUS", "Invalid coil address: start=%d, count=%d, max=%d", 
+                         address, nb, tcp_slave.reg_sizes.tab_bits_size);
+                return -AGILE_MODBUS_EXCEPTION_ILLEGAL_DATA_ADDRESS;
+            }
+            break;
+            
+        case AGILE_MODBUS_FC_READ_DISCRETE_INPUTS:
+            if (address < 0 || address + nb > tcp_slave.reg_sizes.tab_input_bits_size) {
+                ESP_LOGE("MODBUS", "Invalid discrete input address: start=%d, count=%d, max=%d", 
+                         address, nb, tcp_slave.reg_sizes.tab_input_bits_size);
+                return -AGILE_MODBUS_EXCEPTION_ILLEGAL_DATA_ADDRESS;
+            }
+            break;
+            
+        case AGILE_MODBUS_FC_READ_HOLDING_REGISTERS:
+        case AGILE_MODBUS_FC_WRITE_SINGLE_REGISTER:
+        case AGILE_MODBUS_FC_WRITE_MULTIPLE_REGISTERS:
+        case AGILE_MODBUS_FC_MASK_WRITE_REGISTER:
+            if (address < 0 || address + nb > tcp_slave.reg_sizes.tab_registers_size) {
+                ESP_LOGE("MODBUS", "Invalid holding register address: start=%d, count=%d, max=%d", 
+                         address, nb, tcp_slave.reg_sizes.tab_registers_size);
+                return -AGILE_MODBUS_EXCEPTION_ILLEGAL_DATA_ADDRESS;
+            }
+            break;
+            
+        case AGILE_MODBUS_FC_READ_INPUT_REGISTERS:
+            if (address < 0 || address + nb > tcp_slave.reg_sizes.tab_input_registers_size) {
+                ESP_LOGE("MODBUS", "Invalid input register address: start=%d, count=%d, max=%d", 
+                         address, nb, tcp_slave.reg_sizes.tab_input_registers_size);
+                return -AGILE_MODBUS_EXCEPTION_ILLEGAL_DATA_ADDRESS;
+            }
+            break;
+            
+        case AGILE_MODBUS_FC_WRITE_AND_READ_REGISTERS: {
+            // 对于写读组合功能，需要单独处理
+            int address_read = address;
+            int nb_read = nb;
+            int address_write = (slave_info->buf[2] << 8) + slave_info->buf[3];
+            int nb_write = (slave_info->buf[4] << 8) + slave_info->buf[5];
+            
+            // 检查读取地址范围
+            if (address_read < 0 || address_read + nb_read > tcp_slave.reg_sizes.tab_registers_size) {
+                ESP_LOGE("MODBUS", "Invalid read register address: start=%d, count=%d, max=%d", 
+                         address_read, nb_read, tcp_slave.reg_sizes.tab_registers_size);
+                return -AGILE_MODBUS_EXCEPTION_ILLEGAL_DATA_ADDRESS;
+            }
+            
+            // 检查写入地址范围
+            if (address_write < 0 || address_write + nb_write > tcp_slave.reg_sizes.tab_registers_size) {
+                ESP_LOGE("MODBUS", "Invalid write register address: start=%d, count=%d, max=%d", 
+                         address_write, nb_write, tcp_slave.reg_sizes.tab_registers_size);
+                return -AGILE_MODBUS_EXCEPTION_ILLEGAL_DATA_ADDRESS;
+            }
+            break;
+        }
+    }
+    
     return 0;
 }
 
