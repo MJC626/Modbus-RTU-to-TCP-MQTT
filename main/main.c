@@ -104,8 +104,11 @@ void app_main(void) {
         }
         //启动modbus_rtu
         start_modbus();
-        //启动modbus_tcp
-        start_tcp_server();
+        if(tcp_slave.enabled){
+            //启动modbus_tcp
+            ESP_LOGI(TAG, "Starting Modbus tcp");
+            start_tcp_server();
+        }
 
     }
     
