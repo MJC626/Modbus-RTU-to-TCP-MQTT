@@ -22,6 +22,23 @@ esp_err_t get_html_handler(httpd_req_t *req)
     return ESP_OK;
 }
 
+// Favicon处理函数
+esp_err_t get_favicon_handler(httpd_req_t *req)
+{
+    // 引用嵌入的favicon.ico文件
+    extern const uint8_t favicon_ico_start[] asm("_binary_favicon_ico_start");
+    extern const uint8_t favicon_ico_end[] asm("_binary_favicon_ico_end");
+    const size_t favicon_ico_size = (favicon_ico_end - favicon_ico_start);
+    
+    // 设置正确的内容类型
+    httpd_resp_set_type(req, "image/x-icon");
+    // 发送favicon数据
+    httpd_resp_send(req, (const char *)favicon_ico_start, favicon_ico_size);
+    
+    return ESP_OK;
+}
+
+
 // Modbus配置获取处理函数
 esp_err_t get_modbus_config_handler(httpd_req_t *req)
 {
@@ -747,6 +764,13 @@ static const httpd_uri_t html = {
     .handler = get_html_handler,
     .user_ctx = NULL};
 
+static const httpd_uri_t favicon_uri = {
+    .uri = "/favicon.ico",
+    .method = HTTP_GET,
+    .handler = get_favicon_handler,
+    .user_ctx = NULL
+};
+
 static const httpd_uri_t modbus_config_get = {
     .uri = "/api/modbus/config",
     .method = HTTP_GET,
@@ -805,6 +829,7 @@ httpd_handle_t start_webserver(void)
     if (httpd_start(&server, &config) == ESP_OK)
     {
         httpd_register_uri_handler(server, &html);
+        httpd_register_uri_handler(server, &favicon_uri);
         httpd_register_uri_handler(server, &modbus_config_get);
         httpd_register_uri_handler(server, &modbus_config_post);
         httpd_register_uri_handler(server, &mqtt_config_get);
