@@ -13,6 +13,9 @@ static const char *TAG = "modbus_tcp_slave";
 
 // 地址检查回调函数
 static int addr_check(agile_modbus_t *ctx, struct agile_modbus_slave_info *slave_info) {
+    int slave = slave_info->sft->slave;
+    if ((slave != ctx->slave) && (slave != AGILE_MODBUS_BROADCAST_ADDRESS))
+    return -AGILE_MODBUS_EXCEPTION_UNKNOW;
     int function = slave_info->sft->function;
     int address = slave_info->address;
     int nb = slave_info->nb;
