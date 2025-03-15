@@ -75,13 +75,6 @@ static void mqtt_publish_task(void *pvParameters) {
                 goto delay_continue;
             }
 
-            cJSON *groups = cJSON_CreateArray();
-            if (!groups) {
-                ESP_LOGE(TAG, "Failed to create groups array");
-                cJSON_Delete(root);
-                goto delay_continue;
-            }
-
             bool any_group_ready = false;
 
             for (int i = 0; i < mqtt_config.group_count; i++) {
@@ -93,20 +86,11 @@ static void mqtt_publish_task(void *pvParameters) {
                 }
 
                 ESP_LOGI(TAG, "Processing group %d", group_id);
-                cJSON *group = cJSON_CreateObject();
-                if (!group) {
-                    ESP_LOGE(TAG, "Failed to create group object for group %d", group_id);
-                    continue;
-                }
-
-                cJSON_AddNumberToObject(group, "group_id", group_id);
-                cJSON_AddNumberToObject(group, "function_code",
-                                      modbus_config.groups[group_id].function_code);
-
-                cJSON *data = cJSON_CreateArray();
-                if (!data) {
-                    ESP_LOGE(TAG, "Failed to create data array for group %d", group_id);
-                    cJSON_Delete(group);
+                
+                // 为每个组创建一个数组
+                cJSON *group_data = cJSON_CreateArray();
+                if (!group_data) {
+                    ESP_LOGE(TAG, "Failed to create group data array for group %d", group_id);
                     continue;
                 }
 
@@ -133,7 +117,7 @@ static void mqtt_publish_task(void *pvParameters) {
                                 ESP_LOGE(TAG, "Failed to create JSON number for bit %d", j);
                                 success = false;
                             } else {
-                                cJSON_AddItemToArray(data, num);
+                                cJSON_AddItemToArray(group_data, num);
                             }
                         }
                         break;
@@ -162,7 +146,7 @@ static void mqtt_publish_task(void *pvParameters) {
                                         ESP_LOGE(TAG, "Failed to create JSON number for register %d", j);
                                         success = false;
                                     } else {
-                                        cJSON_AddItemToArray(data, num);
+                                        cJSON_AddItemToArray(group_data, num);
                                     }
                                 }
                                 break;
@@ -202,7 +186,7 @@ static void mqtt_publish_task(void *pvParameters) {
                                         ESP_LOGE(TAG, "Failed to create JSON number for registers %d-%d", j, j+1);
                                         success = false;
                                     } else {
-                                        cJSON_AddItemToArray(data, num);
+                                        cJSON_AddItemToArray(group_data, num);
                                     }
                                 }
                                 break;
@@ -246,7 +230,7 @@ static void mqtt_publish_task(void *pvParameters) {
                                         ESP_LOGE(TAG, "Failed to create JSON number for float registers %d-%d", j, j+1);
                                         success = false;
                                     } else {
-                                        cJSON_AddItemToArray(data, num);
+                                        cJSON_AddItemToArray(group_data, num);
                                     }
                                 }
                                 break;
@@ -257,19 +241,19 @@ static void mqtt_publish_task(void *pvParameters) {
                 }
 
                 if (success) {
-                    cJSON_AddItemToObject(group, "data", data);
-                    cJSON_AddItemToArray(groups, group);
+                    // 使用 group_id 作为键，直接添加到 root 对象中
+                    char group_key[16];
+                    snprintf(group_key, sizeof(group_key), "group%d", group_id);
+                    cJSON_AddItemToObject(root, group_key, group_data);
                     any_group_ready = true;
                     ESP_LOGI(TAG, "Successfully processed group %d", group_id);
                 } else {
                     ESP_LOGE(TAG, "Failed to process group %d", group_id);
-                    cJSON_Delete(data);
-                    cJSON_Delete(group);
+                    cJSON_Delete(group_data);
                 }
             }
 
             if (any_group_ready) {
-                cJSON_AddItemToObject(root, "groups", groups);
                 if (cJSON_PrintPreallocated(root, json_buffer, JSON_BUFFER_SIZE, 0)) {
                     esp_mqtt_client_publish(mqtt_client,
                                           mqtt_config.topic,
