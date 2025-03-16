@@ -54,16 +54,17 @@ static SemaphoreHandle_t rx2_sem;
 
 //UART0发送数据
 int send_data0(uint8_t *buf, int len) {
-    return uart_write_bytes_with_break(UART_NUM_0, (const char*)buf, len, 100);
+    return uart_write_bytes(UART_NUM_0, (const char*)buf, len);
 }
 
 //UART1发送数据
 int send_data1(uint8_t *buf, int len) {
-    return uart_write_bytes_with_break(UART_NUM_1, (const char*)buf, len, 100);
+    return uart_write_bytes(UART_NUM_1, (const char*)buf, len);
 }
+
 //UART2发送数据
 int send_data2(uint8_t *buf, int len) {
-    return uart_write_bytes_with_break(UART_NUM_2, (const char*)buf, len, 100);
+    return uart_write_bytes(UART_NUM_2, (const char*)buf, len);
 }
 
 //UART0接收数据
