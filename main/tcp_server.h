@@ -6,7 +6,7 @@
 #define SERVER_KEEPALIVE_INTERVAL 5
 #define SERVER_KEEPALIVE_COUNT 3
 #define SERVER_TASK_STACK_SIZE 4096
-#define SERVER_TASK_PRIORITY 5
+#define SERVER_TASK_PRIORITY 9
 
 void start_tcp_server(void);
 

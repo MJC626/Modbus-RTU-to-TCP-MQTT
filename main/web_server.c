@@ -824,7 +824,7 @@ httpd_handle_t start_webserver(void)
     httpd_handle_t server = NULL;
     httpd_config_t config = HTTPD_DEFAULT_CONFIG();
     config.stack_size = 8192;
-    config.max_uri_handlers = 10;  // 增加处理程序的最大数量
+    config.max_uri_handlers = 10;  
 
     if (httpd_start(&server, &config) == ESP_OK)
     {
