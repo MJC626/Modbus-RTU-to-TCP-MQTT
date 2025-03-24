@@ -102,11 +102,6 @@ const agile_modbus_slave_util_t slave_util = {
     NULL                        // 不需要后处理
 };
 
-
-#define MAX_CLIENTS 3
-#define SERVER_TASK_STACK_SIZE 4096
-#define SERVER_TASK_PRIORITY 5
-
 typedef struct {
     int socket;
     TaskHandle_t task;
@@ -331,5 +326,5 @@ void start_tcp_server(void)
     xTaskCreate(tcp_server_task, "modbus_tcp_slave", SERVER_TASK_STACK_SIZE, 
                 NULL, SERVER_TASK_PRIORITY, NULL);
 
-    xTaskCreate(modbus_regs_update_task, "modbus_update", 4096, NULL, 7, NULL);
+    xTaskCreate(modbus_regs_update_task, "modbus_update", 4096, NULL, 5, NULL);
 }

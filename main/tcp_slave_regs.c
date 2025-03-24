@@ -15,10 +15,9 @@ tcp_slave_t tcp_slave = {
     
     // 寄存器映射配置
     .maps = {
-        {MAP_HOLD_TO_HOLD, 0, 0, 0, 20},
+        {MAP_COIL_TO_COIL, 0, 0, 0, 20},
         {MAP_INPUT_TO_INPUT, 1, 0, 0, 20},
-        {MAP_COIL_TO_COIL, 2, 0, 0, 20},
-        {MAP_DISC_TO_DISC, 3, 0, 0, 20},
+        {MAP_HOLD_TO_HOLD, 2, 0, 0, 4},
     },
     
     // 寄存器空间尺寸配置
