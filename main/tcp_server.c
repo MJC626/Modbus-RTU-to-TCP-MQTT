@@ -326,5 +326,5 @@ void start_tcp_server(void)
     xTaskCreate(tcp_server_task, "modbus_tcp_slave", SERVER_TASK_STACK_SIZE, 
                 NULL, SERVER_TASK_PRIORITY, NULL);
 
-    xTaskCreate(modbus_regs_update_task, "modbus_update", 4096, NULL, 5, NULL);
+    xTaskCreate(modbus_regs_update_task, "modbus_update", 4096, NULL, 6, NULL);
 }
