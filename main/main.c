@@ -27,16 +27,28 @@ void wifi_event_handler(WIFI_EV_e ev) {
     }
 }
 
-void print_memory_info() {
-    multi_heap_info_t info;
-    heap_caps_get_info(&info, MALLOC_CAP_INTERNAL);
-    ESP_LOGI(TAG, "内存信息:");
-    ESP_LOGI(TAG, "总可用字节数: %d", info.total_free_bytes);
-    ESP_LOGI(TAG, "总分配字节数: %d", info.total_allocated_bytes);
-    ESP_LOGI(TAG, "最大空闲块: %d", info.largest_free_block);
-    ESP_LOGI(TAG, "最小可用字节数: %d", info.minimum_free_bytes);
-    UBaseType_t stackWaterMark = uxTaskGetStackHighWaterMark(NULL);
-    ESP_LOGI(TAG, "堆栈高水位标记: %d 字节", stackWaterMark * sizeof(StackType_t));
+
+// 任务信息打印
+void print_task_info(void) {
+    char buffer[1024];  // 存储任务信息
+
+    // 打印任务列表（状态、优先级、剩余栈空间等）
+    memset(buffer, 0, sizeof(buffer));
+    vTaskList(buffer);
+    ESP_LOGI(TAG, "Task List:\nName\t\tState\tPrio\tStack\tTask#\n%s", buffer);
+
+    // 打印任务运行时间统计（CPU 占用率）
+    memset(buffer, 0, sizeof(buffer));
+    vTaskGetRunTimeStats(buffer);
+    ESP_LOGI(TAG, "Task Runtime Stats:\nName\t\tAbs Time\t%% Time\n%s", buffer);
+}
+
+// 任务监视器（每 5 秒打印一次任务信息）
+void task_monitor(void *pvParameters) {
+    while (1) {
+        vTaskDelay(pdMS_TO_TICKS(10000));  // 每 10 秒打印一次
+        print_task_info();
+    }
 }
 
 void app_main(void) {
@@ -110,11 +122,9 @@ void app_main(void) {
             start_tcp_server();
         }
 
+            // 创建任务监视器
+    xTaskCreate(task_monitor, "TaskMonitor", 4096, NULL, 5, NULL);
+
     }
     
-    while(1)
-    {
-        // print_memory_info();
-        // vTaskDelay(pdMS_TO_TICKS(10000));     // 每10秒打印一次堆栈信息和堆内存信息
-    }
 }

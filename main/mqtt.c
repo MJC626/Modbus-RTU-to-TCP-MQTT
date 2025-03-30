@@ -98,12 +98,12 @@ static void mqtt_publish_task(void *pvParameters) {
                 uint8_t function_code = modbus_config.groups[group_id].function_code;
                 uint16_t count = modbus_config.groups[group_id].reg_count;
 
-                ESP_LOGI(TAG, "Processing function code %d with %d registers", function_code, count);
+                //ESP_LOGI(TAG, "Processing function code %d with %d registers", function_code, count);
 
                 switch(function_code) {
                     case 1:
                     case 2: {
-                        ESP_LOGI(TAG, "Processing coils/discrete inputs for group %d", group_id);
+                        //ESP_LOGI(TAG, "Processing coils/discrete inputs for group %d", group_id);
                         uint8_t *bits = (function_code == 1) ?
                                       modbus_data.coils[group_id] :
                                       modbus_data.discrete_inputs[group_id];
@@ -130,7 +130,7 @@ static void mqtt_publish_task(void *pvParameters) {
                                         modbus_data.input_regs[group_id];
                         
                         parse_method_t method = mqtt_config.parse_methods[group_id];
-                        ESP_LOGI(TAG, "Using parse method %d", method);
+                        //ESP_LOGI(TAG, "Using parse method %d", method);
                         
                         switch(method) {
                             case PARSE_INT16_SIGNED:

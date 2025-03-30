@@ -23,11 +23,11 @@ static modbus_context_t mb_ctx2 = {0};
 static modbus_context_t mb_ctx3 = {0};
 
 // 自适应超时配置
-#define TIMEOUT_INITIAL 300  // 初始超时时间 (ms)
-#define TIMEOUT_MIN 100      // 最小超时时间 (ms)
-#define TIMEOUT_MAX 1000     // 最大超时时间 (ms)
-#define TIMEOUT_ADJUST_UP 50  // 超时增量 (ms)
-#define TIMEOUT_ADJUST_DOWN 20  // 超时减量 (ms)
+#define TIMEOUT_INITIAL 200  // 初始超时时间 (ms)
+#define TIMEOUT_MIN 40       // 最小超时时间 (ms)
+#define TIMEOUT_MAX 500      // 最大超时时间 (ms)
+#define TIMEOUT_ADJUST_UP 10  // 超时增量 (ms)
+#define TIMEOUT_ADJUST_DOWN 10  // 超时减量 (ms)
 
 // 每组的自适应超时存储
 static uint32_t group_timeouts[MAX_POLL_GROUPS] = {0};
@@ -87,7 +87,7 @@ static void adjust_timeout(int group_index, bool success) {
         timeout_failure_count[group_index] = 0;
         
         // 连续多次成功后减少超时时间
-        if (timeout_success_count[group_index] >= 5) {
+        if (timeout_success_count[group_index] >= 3) {
             if (group_timeouts[group_index] > TIMEOUT_MIN + TIMEOUT_ADJUST_DOWN) {
                 group_timeouts[group_index] -= TIMEOUT_ADJUST_DOWN;
                 //ESP_LOGI(TAG, "组 %d 通信稳定，减少超时至 %" PRIu32 " ms", group_index, group_timeouts[group_index]);
