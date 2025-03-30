@@ -22,8 +22,25 @@ static modbus_context_t mb_ctx1 = {0};
 static modbus_context_t mb_ctx2 = {0};
 static modbus_context_t mb_ctx3 = {0};
 
+// 自适应超时配置
+#define TIMEOUT_INITIAL 300  // 初始超时时间 (ms)
+#define TIMEOUT_MIN 100      // 最小超时时间 (ms)
+#define TIMEOUT_MAX 1000     // 最大超时时间 (ms)
+#define TIMEOUT_ADJUST_UP 50  // 超时增量 (ms)
+#define TIMEOUT_ADJUST_DOWN 20  // 超时减量 (ms)
+
+// 每组的自适应超时存储
+static uint32_t group_timeouts[MAX_POLL_GROUPS] = {0};
+static uint8_t timeout_failure_count[MAX_POLL_GROUPS] = {0};
+static uint8_t timeout_success_count[MAX_POLL_GROUPS] = {0};
+
 void start_modbus(void)
 { 
+    // 初始化组超时
+    for (int i = 0; i < MAX_POLL_GROUPS; i++) {
+        group_timeouts[i] = TIMEOUT_INITIAL;
+    }
+    
     // 初始化UART1的Modbus
     agile_modbus_rtu_init(&mb_ctx1.ctx_rtu, master1_send_buf, sizeof(master1_send_buf),
                           master1_recv_buf, sizeof(master1_recv_buf));
@@ -60,6 +77,34 @@ void start_modbus(void)
                 &mb_ctx3,
                 9,
                 NULL);
+}
+
+// 自适应调整超时函数
+static void adjust_timeout(int group_index, bool success) {
+    if (success) {
+        // 通信成功，增加成功计数
+        timeout_success_count[group_index]++;
+        timeout_failure_count[group_index] = 0;
+        
+        // 连续多次成功后减少超时时间
+        if (timeout_success_count[group_index] >= 5) {
+            if (group_timeouts[group_index] > TIMEOUT_MIN + TIMEOUT_ADJUST_DOWN) {
+                group_timeouts[group_index] -= TIMEOUT_ADJUST_DOWN;
+                ESP_LOGI(TAG, "组 %d 通信稳定，减少超时至 %" PRIu32 " ms", group_index, group_timeouts[group_index]);
+            }
+            timeout_success_count[group_index] = 0;
+        }
+    } else {
+        // 通信失败，增加失败计数并立即增加超时时间
+        timeout_failure_count[group_index]++;
+        timeout_success_count[group_index] = 0;
+        
+        // 失败后立即增加超时时间
+        if (group_timeouts[group_index] < TIMEOUT_MAX - TIMEOUT_ADJUST_UP) {
+            group_timeouts[group_index] += TIMEOUT_ADJUST_UP;
+            ESP_LOGI(TAG, "组 %d 通信失败，增加超时至 %" PRIu32 " ms", group_index, group_timeouts[group_index]);
+        }
+    }
 }
 
 void modbus_poll_task(void *pvParameters)
@@ -118,21 +163,24 @@ void modbus_poll_task(void *pvParameters)
             if (send_len > 0)
             {
                 int read_len = -1;  // 初始化为-1
+                // 获取当前组的超时时间
+                uint32_t current_timeout = group_timeouts[i];
+                
                 // 根据 UART 端口选择不同的发送和接收函数
                 if (mb_ctx->uart_port == 1)
                 {
                     send_data1(ctx->send_buf, send_len);
-                    read_len = receive_data1(ctx->read_buf, ctx->read_bufsz, 1000, 20);
+                    read_len = receive_data1(ctx->read_buf, ctx->read_bufsz, current_timeout, 20);
                 }
                 else if (mb_ctx->uart_port == 2)
                 {
                     send_data2(ctx->send_buf, send_len);
-                    read_len = receive_data2(ctx->read_buf, ctx->read_bufsz, 1000, 20);
+                    read_len = receive_data2(ctx->read_buf, ctx->read_bufsz, current_timeout, 20);
                 }
                 else if (mb_ctx->uart_port == 3)  // UART3 使用 UART0 的物理接口
                 {
                     send_data0(ctx->send_buf, send_len);
-                    read_len = receive_data0(ctx->read_buf, ctx->read_bufsz, 1000, 20);
+                    read_len = receive_data0(ctx->read_buf, ctx->read_bufsz, current_timeout, 20);
                 }
                 else 
                 {
@@ -226,21 +274,27 @@ void modbus_poll_task(void *pvParameters)
                     if (rc >= 0)
                     {
                         modbus_data.register_ready[i] = true;
-                        ESP_LOGI(TAG, "UART%d 组 %d FC%d 数据采集成功",
-                                 mb_ctx->uart_port, i, modbus_config.groups[i].function_code);
+                        // 通信成功，调整超时
+                        adjust_timeout(i, true);
+                        ESP_LOGI(TAG, "UART%d 组 %d FC%d 数据采集成功 (timeout: %" PRIu32 " ms)",
+                                 mb_ctx->uart_port, i, modbus_config.groups[i].function_code, current_timeout);
                     }
                     else
                     {
                         ESP_LOGE(TAG, "UART%d 组 %d FC%d 数据解析失败",
                                  mb_ctx->uart_port, i, modbus_config.groups[i].function_code);
                         modbus_data.register_ready[i] = false;
+                        // 通信失败，调整超时
+                        adjust_timeout(i, false);
                     }
                 }
                 else
                 {
-                    ESP_LOGE(TAG, "UART%d 组 %d FC%d 读取超时",
-                             mb_ctx->uart_port, i, modbus_config.groups[i].function_code);
+                    ESP_LOGE(TAG, "UART%d 组 %d FC%d 读取超时 (timeout: %" PRIu32 " ms)",
+                             mb_ctx->uart_port, i, modbus_config.groups[i].function_code, current_timeout);
                     modbus_data.register_ready[i] = false;
+                    // 通信失败，调整超时
+                    adjust_timeout(i, false);
                 }
             }
             else

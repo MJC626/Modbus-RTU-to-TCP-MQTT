@@ -7,7 +7,7 @@ static const char* TAG = "modbus_config";
 
 // 定义modbus默认配置
 modbus_config_t modbus_config = {
-    .poll_interval = 100,
+    .poll_interval = 300,
     .group_count = 3,
     .groups = {
         {.enabled = true, .slave_addr = 10, .function_code = 1, .start_addr = 0, .reg_count = 20, .uart_port = 1},
