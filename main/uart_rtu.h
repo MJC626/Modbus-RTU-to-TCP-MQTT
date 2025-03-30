@@ -49,9 +49,9 @@ extern uart_param_t uart_params[3];
 int send_data0(uint8_t *buf, int len);
 int send_data1(uint8_t *buf, int len);
 int send_data2(uint8_t *buf, int len);
-int receive_data0(uint8_t *buf, int bufsz, int timeout, int bytes_timeout);
-int receive_data1(uint8_t *buf, int bufsz, int timeout, int bytes_timeout);
-int receive_data2(uint8_t *buf, int bufsz, int timeout, int bytes_timeout);
+int receive_data0(uint8_t *buf, int bufsz, int timeout);
+int receive_data1(uint8_t *buf, int bufsz, int timeout);
+int receive_data2(uint8_t *buf, int bufsz, int timeout);
 int uart_init(void);
 
 // 从NVS中读取UART参数

@@ -67,11 +67,32 @@ int send_data2(uint8_t *buf, int len) {
     return uart_write_bytes(UART_NUM_2, (const char*)buf, len);
 }
 
+// 根据波特率获取字节超时时间（毫秒）
+static int get_byte_timeout_by_baudrate(uart_rtu_baud_rate_t baud_rate) {
+    switch (baud_rate) {
+        case BAUD_9600:
+            return 5;
+        case BAUD_19200:
+            return 4;
+        case BAUD_38400:
+            return 3;
+        case BAUD_57600:
+            return 3;
+        case BAUD_115200:
+            return 2;
+        default:
+            return 5;
+    }
+}
+
 //UART0接收数据
-int receive_data0(uint8_t *buf, int bufsz, int timeout, int bytes_timeout) {
+int receive_data0(uint8_t *buf, int bufsz, int timeout) {
     int len = 0;
     int rc;
     TickType_t start = xTaskGetTickCount();
+    
+    // 根据当前配置的波特率获取字节超时时间
+    int bytes_timeout = get_byte_timeout_by_baudrate(uart_params[0].baud_rate);
     
     while (1) {
         if (xSemaphoreTake(rx0_sem, pdMS_TO_TICKS(timeout)) == pdTRUE) {
@@ -90,7 +111,7 @@ int receive_data0(uint8_t *buf, int bufsz, int timeout, int bytes_timeout) {
 }
 
 //UART1接收数据
-int receive_data1(uint8_t *buf, int bufsz, int timeout, int bytes_timeout) {
+int receive_data1(uint8_t *buf, int bufsz, int timeout) {
      // 已接收到的总字节数
     int len = 0;
     // 当前接收到的字节数
@@ -98,10 +119,13 @@ int receive_data1(uint8_t *buf, int bufsz, int timeout, int bytes_timeout) {
     // 记录开始时间
     TickType_t start = xTaskGetTickCount();
     
+    // 根据当前配置的波特率获取字节超时时间
+    int bytes_timeout = get_byte_timeout_by_baudrate(uart_params[1].baud_rate);
+    
     while (1) {
         // 尝试获取接收数据的信号量，等待时间由timeout参数决定(信号量超时,确保任务不会死锁)
         if (xSemaphoreTake(rx1_sem, pdMS_TO_TICKS(timeout)) == pdTRUE) {
-            // 从UART1中读取数据，读取的字节数受bytes_timeout参数控制
+            // 从UART1中读取数据，使用根据波特率计算的超时时间
             rc = uart_read_bytes(UART_NUM_1, buf + len, bufsz, pdMS_TO_TICKS(bytes_timeout));
             if (rc > 0) {
                 // 累加读取的字节数并减少剩余缓冲区大小
@@ -118,11 +142,15 @@ int receive_data1(uint8_t *buf, int bufsz, int timeout, int bytes_timeout) {
     }
     return len;// 返回实际接收到的字节数
 }
+
 //UART2接收数据
-int receive_data2(uint8_t *buf, int bufsz, int timeout, int bytes_timeout) {
+int receive_data2(uint8_t *buf, int bufsz, int timeout) {
     int len = 0;
     int rc;
     TickType_t start = xTaskGetTickCount();
+    
+    // 根据当前配置的波特率获取字节超时时间
+    int bytes_timeout = get_byte_timeout_by_baudrate(uart_params[2].baud_rate);
     
     while (1) {
         if (xSemaphoreTake(rx2_sem, pdMS_TO_TICKS(timeout)) == pdTRUE) {

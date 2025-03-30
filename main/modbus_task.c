@@ -90,7 +90,7 @@ static void adjust_timeout(int group_index, bool success) {
         if (timeout_success_count[group_index] >= 5) {
             if (group_timeouts[group_index] > TIMEOUT_MIN + TIMEOUT_ADJUST_DOWN) {
                 group_timeouts[group_index] -= TIMEOUT_ADJUST_DOWN;
-                ESP_LOGI(TAG, "组 %d 通信稳定，减少超时至 %" PRIu32 " ms", group_index, group_timeouts[group_index]);
+                //ESP_LOGI(TAG, "组 %d 通信稳定，减少超时至 %" PRIu32 " ms", group_index, group_timeouts[group_index]);
             }
             timeout_success_count[group_index] = 0;
         }
@@ -102,7 +102,7 @@ static void adjust_timeout(int group_index, bool success) {
         // 失败后立即增加超时时间
         if (group_timeouts[group_index] < TIMEOUT_MAX - TIMEOUT_ADJUST_UP) {
             group_timeouts[group_index] += TIMEOUT_ADJUST_UP;
-            ESP_LOGI(TAG, "组 %d 通信失败，增加超时至 %" PRIu32 " ms", group_index, group_timeouts[group_index]);
+            //ESP_LOGI(TAG, "组 %d 通信失败，增加超时至 %" PRIu32 " ms", group_index, group_timeouts[group_index]);
         }
     }
 }
@@ -170,17 +170,17 @@ void modbus_poll_task(void *pvParameters)
                 if (mb_ctx->uart_port == 1)
                 {
                     send_data1(ctx->send_buf, send_len);
-                    read_len = receive_data1(ctx->read_buf, ctx->read_bufsz, current_timeout, 20);
+                    read_len = receive_data1(ctx->read_buf, ctx->read_bufsz, current_timeout);
                 }
                 else if (mb_ctx->uart_port == 2)
                 {
                     send_data2(ctx->send_buf, send_len);
-                    read_len = receive_data2(ctx->read_buf, ctx->read_bufsz, current_timeout, 20);
+                    read_len = receive_data2(ctx->read_buf, ctx->read_bufsz, current_timeout);
                 }
                 else if (mb_ctx->uart_port == 3)  // UART3 使用 UART0 的物理接口
                 {
                     send_data0(ctx->send_buf, send_len);
-                    read_len = receive_data0(ctx->read_buf, ctx->read_bufsz, current_timeout, 20);
+                    read_len = receive_data0(ctx->read_buf, ctx->read_bufsz, current_timeout);
                 }
                 else 
                 {
@@ -196,7 +196,7 @@ void modbus_poll_task(void *pvParameters)
                     {
                     case 1:
                     {   // Read Coils
-                        /* 每个元素存储一个位，改为足够大的数组 */
+                        /* 每个元素存储一个位 */
                         uint8_t bit_values[MAX_BITS] = {0};
                         rc = agile_modbus_deserialize_read_bits(ctx, read_len, bit_values);
                         if (rc >= 0)
