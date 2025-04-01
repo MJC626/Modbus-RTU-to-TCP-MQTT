@@ -61,21 +61,21 @@ void start_modbus(void)
                 "modbus_task1",
                 MODBUS_TASK_STACK_SIZE,
                 &mb_ctx1,
-                9,
+                10,
                 NULL);
 
     xTaskCreate(modbus_poll_task,
                 "modbus_task2",
                 MODBUS_TASK_STACK_SIZE,
                 &mb_ctx2,
-                9,
+                10,
                 NULL);
 
     xTaskCreate(modbus_poll_task,
                 "modbus_task3", 
                 MODBUS_TASK_STACK_SIZE,
                 &mb_ctx3,
-                9,
+                10,
                 NULL);
 }
 

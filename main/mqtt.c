@@ -224,7 +224,7 @@ static void mqtt_publish_task(void *pvParameters) {
                                     float value;
                                     memcpy(&value, &raw, sizeof(float));
                                     char number_buffer[32];
-                                    snprintf(number_buffer, sizeof(number_buffer), "%.2f", value); // 保留两位小数
+                                    snprintf(number_buffer, sizeof(number_buffer), "%.4f", value); // 保留两位小数
                                     cJSON *num = cJSON_CreateRaw(number_buffer);
                                     if (!num) {
                                         ESP_LOGE(TAG, "Failed to create JSON number for float registers %d-%d", j, j+1);
