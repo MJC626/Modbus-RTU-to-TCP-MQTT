@@ -5,7 +5,7 @@
 #include <stdint.h>
 #include "esp_err.h"
 
-#define MAX_REGS 100       //一次轮询读取最大寄存器个数
+#define MAX_REGS 125       //一次轮询读取最大寄存器个数
 #define MAX_BITS 256   // 最大位数
 #define MAX_POLL_GROUPS 10 //最大轮询组
 

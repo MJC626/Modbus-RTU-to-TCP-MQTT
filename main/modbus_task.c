@@ -272,21 +272,21 @@ void modbus_poll_task(void *pvParameters)
                     }
 
                     if (rc >= 0)
-                    {
-                        modbus_data.register_ready[i] = true;
-                        // 通信成功，调整超时
-                        adjust_timeout(i, true);
-                        ESP_LOGI(TAG, "UART%d 组 %d FC%d 数据采集成功 (timeout: %" PRIu32 " ms)",
-                                 mb_ctx->uart_port, i, modbus_config.groups[i].function_code, current_timeout);
-                    }
-                    else
-                    {
-                        ESP_LOGE(TAG, "UART%d 组 %d FC%d 数据解析失败",
-                                 mb_ctx->uart_port, i, modbus_config.groups[i].function_code);
-                        modbus_data.register_ready[i] = false;
-                        // 通信失败，调整超时
-                        adjust_timeout(i, false);
-                    }
+{
+    modbus_data.register_ready[i] = true;
+    // 通信成功，调整超时
+    adjust_timeout(i, true);
+    ESP_LOGI(TAG, "UART%d 组 %d FC%d 数据采集成功 (timeout: %" PRIu32 " ms)，接收数据长度: %d",
+             mb_ctx->uart_port, i, modbus_config.groups[i].function_code, current_timeout, read_len);
+}
+else
+{
+    ESP_LOGE(TAG, "UART%d 组 %d FC%d 数据解析失败，接收数据长度: %d",
+             mb_ctx->uart_port, i, modbus_config.groups[i].function_code, read_len);
+    modbus_data.register_ready[i] = false;
+    // 通信失败，调整超时
+    adjust_timeout(i, false);
+}
                 }
                 else
                 {

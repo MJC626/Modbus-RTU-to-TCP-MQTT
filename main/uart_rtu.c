@@ -10,6 +10,8 @@
 #include "nvs_flash.h"
 #include "nvs.h"
 
+#define MIN(a, b) ((a) < (b) ? (a) : (b))
+
 // 定义缓冲区大小，使用串口缓冲区的默认大小
 #define BUF_SIZE UART_BUFFER_SIZE
 
@@ -73,11 +75,11 @@ static int get_byte_timeout_by_baudrate(uart_rtu_baud_rate_t baud_rate) {
         case BAUD_9600:
             return 5;
         case BAUD_19200:
-            return 4;
+            return 3;
         case BAUD_38400:
-            return 3;
+            return 2;
         case BAUD_57600:
-            return 3;
+            return 2;
         case BAUD_115200:
             return 2;
         default:
@@ -90,57 +92,108 @@ int receive_data0(uint8_t *buf, int bufsz, int timeout) {
     int len = 0;
     int rc;
     TickType_t start = xTaskGetTickCount();
-    
-    // 根据当前配置的波特率获取字节超时时间
-    int bytes_timeout = get_byte_timeout_by_baudrate(uart_params[0].baud_rate);
+    TickType_t last_byte_time = start;
+    int t35_timeout = get_byte_timeout_by_baudrate(uart_params[1].baud_rate);
     
     while (1) {
-        if (xSemaphoreTake(rx0_sem, pdMS_TO_TICKS(timeout)) == pdTRUE) {
-            rc = uart_read_bytes(UART_NUM_0, buf + len, bufsz, pdMS_TO_TICKS(bytes_timeout));
-            if (rc > 0) {
-                len += rc;
-                bufsz -= rc;
-                if (bufsz == 0) break;
-            } else if (rc == 0) break;
-        } else break;
-        
-        if ((xTaskGetTickCount() - start) * portTICK_PERIOD_MS >= timeout)
+        int elapsed_time = (xTaskGetTickCount() - start) * portTICK_PERIOD_MS;
+        if (elapsed_time >= timeout) {
             break;
+        }
+        
+        int remaining_timeout = timeout - elapsed_time;
+        
+        if (xSemaphoreTake(rx0_sem, pdMS_TO_TICKS(MIN(remaining_timeout, 50))) == pdTRUE) {
+            size_t available_bytes;
+            uart_get_buffered_data_len(UART_NUM_0, &available_bytes);
+            
+            if (available_bytes > 0) {
+                rc = uart_read_bytes(UART_NUM_0, buf + len, MIN(available_bytes, bufsz - len), pdMS_TO_TICKS(20));
+                
+                if (rc > 0) {
+                    len += rc;
+                    last_byte_time = xTaskGetTickCount();
+                    
+                    if (len >= bufsz) {
+                        break;
+                    }
+                }
+            }
+        } else {
+            if (len > 0) {
+                int idle_time = (xTaskGetTickCount() - last_byte_time) * portTICK_PERIOD_MS;
+                if (idle_time >= t35_timeout) {
+                    break;
+                }
+            }
+        }
+        
+        if (len > 0) {
+            int idle_time = (xTaskGetTickCount() - last_byte_time) * portTICK_PERIOD_MS;
+            if (idle_time >= t35_timeout) {
+                break;
+            }
+        }
     }
     return len;
 }
 
-//UART1接收数据
+// UART1接收数据
 int receive_data1(uint8_t *buf, int bufsz, int timeout) {
-     // 已接收到的总字节数
     int len = 0;
-    // 当前接收到的字节数
     int rc;
-    // 记录开始时间
     TickType_t start = xTaskGetTickCount();
-    
-    // 根据当前配置的波特率获取字节超时时间
-    int bytes_timeout = get_byte_timeout_by_baudrate(uart_params[1].baud_rate);
+    TickType_t last_byte_time = start;
+    int t35_timeout = get_byte_timeout_by_baudrate(uart_params[1].baud_rate);
     
     while (1) {
-        // 尝试获取接收数据的信号量，等待时间由timeout参数决定(信号量超时,确保任务不会死锁)
-        if (xSemaphoreTake(rx1_sem, pdMS_TO_TICKS(timeout)) == pdTRUE) {
-            // 从UART1中读取数据，使用根据波特率计算的超时时间
-            rc = uart_read_bytes(UART_NUM_1, buf + len, bufsz, pdMS_TO_TICKS(bytes_timeout));
-            if (rc > 0) {
-                // 累加读取的字节数并减少剩余缓冲区大小
-                len += rc;
-                bufsz -= rc;
-                // 如果缓冲区已满，则退出循环
-                if (bufsz == 0) break;
-            } else if (rc == 0) break;// 未读取到更多数据，退出循环
-
-        } else break;// 获取信号量失败（例如超时），退出循环
-        // 检查是否超过总超时时间
-        if ((xTaskGetTickCount() - start) * portTICK_PERIOD_MS >= timeout)
+        // 计算已经过去的时间
+        int elapsed_time = (xTaskGetTickCount() - start) * portTICK_PERIOD_MS;
+        if (elapsed_time >= timeout) {
             break;
+        }
+        
+        int remaining_timeout = timeout - elapsed_time;
+        
+        // 等待数据到达
+        if (xSemaphoreTake(rx1_sem, pdMS_TO_TICKS(MIN(remaining_timeout, 50))) == pdTRUE) {
+            // 检查有多少数据可用
+            size_t available_bytes;
+            uart_get_buffered_data_len(UART_NUM_1, &available_bytes);
+            
+            if (available_bytes > 0) {
+                // 每次读取可用的数据，但不超过缓冲区剩余空间
+                rc = uart_read_bytes(UART_NUM_1, buf + len, MIN(available_bytes, bufsz - len), pdMS_TO_TICKS(20));
+                
+                if (rc > 0) {
+                    len += rc;
+                    last_byte_time = xTaskGetTickCount();
+                    
+                    if (len >= bufsz) {
+                        break; // 缓冲区已满
+                    }
+                }
+            }
+        } else {
+            // 信号量等待超时，检查是否应该结束接收
+            if (len > 0) {
+                // 检查字符间隔时间
+                int idle_time = (xTaskGetTickCount() - last_byte_time) * portTICK_PERIOD_MS;
+                if (idle_time >= t35_timeout) {
+                    break; // 帧结束
+                }
+            }
+        }
+        
+        // 如果已经接收到数据，再次检查是否达到帧结束条件
+        if (len > 0) {
+            int idle_time = (xTaskGetTickCount() - last_byte_time) * portTICK_PERIOD_MS;
+            if (idle_time >= t35_timeout) {
+                break; // 帧结束
+            }
+        }
     }
-    return len;// 返回实际接收到的字节数
+    return len;
 }
 
 //UART2接收数据
@@ -148,83 +201,107 @@ int receive_data2(uint8_t *buf, int bufsz, int timeout) {
     int len = 0;
     int rc;
     TickType_t start = xTaskGetTickCount();
-    
-    // 根据当前配置的波特率获取字节超时时间
-    int bytes_timeout = get_byte_timeout_by_baudrate(uart_params[2].baud_rate);
+    TickType_t last_byte_time = start;
+    int t35_timeout = get_byte_timeout_by_baudrate(uart_params[1].baud_rate);
     
     while (1) {
-        if (xSemaphoreTake(rx2_sem, pdMS_TO_TICKS(timeout)) == pdTRUE) {
-            rc = uart_read_bytes(UART_NUM_2, buf + len, bufsz, pdMS_TO_TICKS(bytes_timeout));
-            if (rc > 0) {
-                len += rc;
-                bufsz -= rc;
-                if (bufsz == 0) break;
-            } else if (rc == 0) break;
-        } else break;
-        
-        if ((xTaskGetTickCount() - start) * portTICK_PERIOD_MS >= timeout)
+        int elapsed_time = (xTaskGetTickCount() - start) * portTICK_PERIOD_MS;
+        if (elapsed_time >= timeout) {
             break;
+        }
+        
+        int remaining_timeout = timeout - elapsed_time;
+        
+        if (xSemaphoreTake(rx2_sem, pdMS_TO_TICKS(MIN(remaining_timeout, 50))) == pdTRUE) {
+            size_t available_bytes;
+            uart_get_buffered_data_len(UART_NUM_2, &available_bytes);
+            
+            if (available_bytes > 0) {
+                rc = uart_read_bytes(UART_NUM_2, buf + len, MIN(available_bytes, bufsz - len), pdMS_TO_TICKS(20));
+                
+                if (rc > 0) {
+                    len += rc;
+                    last_byte_time = xTaskGetTickCount();
+                    
+                    if (len >= bufsz) {
+                        break;
+                    }
+                }
+            }
+        } else {
+            if (len > 0) {
+                int idle_time = (xTaskGetTickCount() - last_byte_time) * portTICK_PERIOD_MS;
+                if (idle_time >= t35_timeout) {
+                    break;
+                }
+            }
+        }
+        
+        if (len > 0) {
+            int idle_time = (xTaskGetTickCount() - last_byte_time) * portTICK_PERIOD_MS;
+            if (idle_time >= t35_timeout) {
+                break;
+            }
+        }
     }
     return len;
 }
+
 
 // UART0事件处理任务函数
 static void uart0_event_task(void *pvParameters) {
     uart_event_t event;
     size_t buffered_size;
+    static uint32_t last_data_time = 0;
     
     while (1) {
         if (xQueueReceive(uart0_queue, (void *)&event, (TickType_t)portMAX_DELAY)) {
             switch (event.type) {
                 case UART_DATA:
+                    // 获取当前缓冲区数据长度
                     uart_get_buffered_data_len(UART_NUM_0, &buffered_size);
+                    // 记录最后一次收到数据的时间
+                    last_data_time = xTaskGetTickCount();
+                    // 通知接收任务
                     xSemaphoreGive(rx0_sem);
                     break;
+                
                 case UART_FIFO_OVF:
                 case UART_BUFFER_FULL:
                     uart_flush_input(UART_NUM_0);
                     xQueueReset(uart0_queue);
                     break;
+                
                 default:
                     break;
             }
         }
     }
 }
-
 // UART1事件处理任务函数
 static void uart1_event_task(void *pvParameters) {
-    // 定义用于存储UART事件的结构体
     uart_event_t event;
-    // 存储缓冲区中剩余数据长度的变量
     size_t buffered_size;
+    static uint32_t last_data_time = 0;
     
-    // 无限循环，用于持续处理UART事件
     while (1) {
-        // 从UART1的事件队列中接收事件，等待时间为无限（portMAX_DELAY）
-        // 如果成功接收到事件，则处理它
         if (xQueueReceive(uart1_queue, (void *)&event, (TickType_t)portMAX_DELAY)) {
-            // 根据接收到的事件类型进行分类处理
             switch (event.type) {
-                // 事件类型为UART_DATA：UART接收到数据
                 case UART_DATA:
-                    // 获取UART缓冲区中存储的剩余数据长度
+                    // 获取当前缓冲区数据长度
                     uart_get_buffered_data_len(UART_NUM_1, &buffered_size);
-                    // 释放信号量，通知接收任务可以开始读取数据
+                    // 记录最后一次收到数据的时间
+                    last_data_time = xTaskGetTickCount();
+                    // 通知接收任务
                     xSemaphoreGive(rx1_sem);
                     break;
                 
-                // 事件类型为UART_FIFO_OVF：UART硬件FIFO溢出
                 case UART_FIFO_OVF:
-                // 事件类型为UART_BUFFER_FULL：UART软件缓冲区已满
                 case UART_BUFFER_FULL:
-                    // 清空UART的输入缓冲区，避免数据残留导致异常
                     uart_flush_input(UART_NUM_1);
-                    // 重置UART的事件队列，清除所有未处理的事件
                     xQueueReset(uart1_queue);
                     break;
                 
-                // 其他类型的事件不做特殊处理
                 default:
                     break;
             }
@@ -235,26 +312,32 @@ static void uart1_event_task(void *pvParameters) {
 static void uart2_event_task(void *pvParameters) {
     uart_event_t event;
     size_t buffered_size;
+    static uint32_t last_data_time = 0;
     
     while (1) {
         if (xQueueReceive(uart2_queue, (void *)&event, (TickType_t)portMAX_DELAY)) {
             switch (event.type) {
                 case UART_DATA:
+                    // 获取当前缓冲区数据长度
                     uart_get_buffered_data_len(UART_NUM_2, &buffered_size);
+                    // 记录最后一次收到数据的时间
+                    last_data_time = xTaskGetTickCount();
+                    // 通知接收任务
                     xSemaphoreGive(rx2_sem);
                     break;
+                
                 case UART_FIFO_OVF:
                 case UART_BUFFER_FULL:
                     uart_flush_input(UART_NUM_2);
                     xQueueReset(uart2_queue);
                     break;
+                
                 default:
                     break;
             }
         }
     }
 }
-
 //初始化UART0、UART1和UART2
 int uart_init(void) {
     // UART基本配置
