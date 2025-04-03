@@ -252,7 +252,6 @@ int receive_data2(uint8_t *buf, int bufsz, int timeout) {
 static void uart0_event_task(void *pvParameters) {
     uart_event_t event;
     size_t buffered_size;
-    static uint32_t last_data_time = 0;
     
     while (1) {
         if (xQueueReceive(uart0_queue, (void *)&event, (TickType_t)portMAX_DELAY)) {
@@ -260,8 +259,6 @@ static void uart0_event_task(void *pvParameters) {
                 case UART_DATA:
                     // 获取当前缓冲区数据长度
                     uart_get_buffered_data_len(UART_NUM_0, &buffered_size);
-                    // 记录最后一次收到数据的时间
-                    last_data_time = xTaskGetTickCount();
                     // 通知接收任务
                     xSemaphoreGive(rx0_sem);
                     break;
@@ -282,7 +279,6 @@ static void uart0_event_task(void *pvParameters) {
 static void uart1_event_task(void *pvParameters) {
     uart_event_t event;
     size_t buffered_size;
-    static uint32_t last_data_time = 0;
     
     while (1) {
         if (xQueueReceive(uart1_queue, (void *)&event, (TickType_t)portMAX_DELAY)) {
@@ -290,8 +286,6 @@ static void uart1_event_task(void *pvParameters) {
                 case UART_DATA:
                     // 获取当前缓冲区数据长度
                     uart_get_buffered_data_len(UART_NUM_1, &buffered_size);
-                    // 记录最后一次收到数据的时间
-                    last_data_time = xTaskGetTickCount();
                     // 通知接收任务
                     xSemaphoreGive(rx1_sem);
                     break;
@@ -312,7 +306,6 @@ static void uart1_event_task(void *pvParameters) {
 static void uart2_event_task(void *pvParameters) {
     uart_event_t event;
     size_t buffered_size;
-    static uint32_t last_data_time = 0;
     
     while (1) {
         if (xQueueReceive(uart2_queue, (void *)&event, (TickType_t)portMAX_DELAY)) {
@@ -320,8 +313,6 @@ static void uart2_event_task(void *pvParameters) {
                 case UART_DATA:
                     // 获取当前缓冲区数据长度
                     uart_get_buffered_data_len(UART_NUM_2, &buffered_size);
-                    // 记录最后一次收到数据的时间
-                    last_data_time = xTaskGetTickCount();
                     // 通知接收任务
                     xSemaphoreGive(rx2_sem);
                     break;
