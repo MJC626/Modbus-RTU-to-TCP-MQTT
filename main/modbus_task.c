@@ -24,8 +24,8 @@ static modbus_context_t mb_ctx3 = {0};
 
 // 自适应超时配置
 #define TIMEOUT_INITIAL 200  // 初始超时时间 (ms)
-#define TIMEOUT_MIN 40       // 最小超时时间 (ms)
-#define TIMEOUT_MAX 500      // 最大超时时间 (ms)
+#define TIMEOUT_MIN 90       // 最小超时时间 (ms)
+#define TIMEOUT_MAX 400      // 最大超时时间 (ms)
 #define TIMEOUT_ADJUST_UP 10  // 超时增量 (ms)
 #define TIMEOUT_ADJUST_DOWN 10  // 超时减量 (ms)
 
